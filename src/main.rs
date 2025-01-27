@@ -1,9 +1,14 @@
-use iced::widget::{button, column, row, text, Column, scrollable};
-use iced::Center;
+use iced::widget::{button, column, row, scrollable, text, Column};
+use iced::{Center, Element, Length, Theme};
 
 pub fn main() -> iced::Result {
     iced::application("Hungry Chicken", App::update, App::view)
+        .theme(theme)
         .run()
+}
+
+fn theme(_state: &App) -> Theme {
+    iced::Theme::TokyoNightStorm
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -12,7 +17,6 @@ enum Message {
     Stop,
     Pause,
 }
-
 
 #[derive(Debug, Default)]
 enum AppState {
@@ -49,24 +53,37 @@ impl App {
 
     fn view(&self) -> Column<Message> {
         column![
-            text(format!("Current State: {:?}", self.state)).size(50),
             row![
+                text(format!("Current State: {:?}", self.state)).size(20),
                 button("Start").on_press(Message::Start),
                 button("Stop").on_press(Message::Stop),
                 button("Pause").on_press(Message::Pause),
             ]
-            .padding(65),
-            scrollable(text(&self.log)).anchor_bottom(),
+            .height(Length::FillPortion(1)),
+            scrollable(text(&self.log))
+                .anchor_bottom()
+                .height(Length::FillPortion(7)),
+            self.info.view(),
         ]
-        .padding(20)
-        .align_x(Center)
+        .width(Length::FillPortion(5))
     }
 }
-
-
 
 #[derive(Debug, Default)]
 struct AppInfo {
     start_time: u32,
     num_refreshes: u32,
+}
+
+impl AppInfo {
+    fn update(&mut self, message: Message) {}
+
+    fn view(&self) -> Element<Message> {
+        column![
+            text(format!("Uptime: {:?}", self.start_time)).size(15),
+            text(format!("Refreshes: {:?}", self.num_refreshes)).size(15),
+        ]
+        .height(Length::FillPortion(2))
+        .into()
+    }
 }
