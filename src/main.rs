@@ -1,5 +1,6 @@
 use iced::widget::{button, column, row, scrollable, text, Column};
 use iced::{Center, Element, Length, Theme};
+use std::time::Instant;
 
 pub fn main() -> iced::Result {
     iced::application("Hungry Chicken", App::update, App::view)
@@ -69,10 +70,19 @@ impl App {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct AppInfo {
-    start_time: u32,
+    start_time: Instant,
     num_refreshes: u32,
+}
+
+impl Default for AppInfo {
+    fn default() -> AppInfo {
+        AppInfo {
+            start_time: Instant::now(),
+            num_refreshes: 0,
+        }
+    }
 }
 
 impl AppInfo {
@@ -80,7 +90,7 @@ impl AppInfo {
 
     fn view(&self) -> Element<Message> {
         column![
-            text(format!("Uptime: {:?}", self.start_time)).size(15),
+            text(format!("Uptime: {:?}", self.start_time.elapsed().as_secs())).size(15),
             text(format!("Refreshes: {:?}", self.num_refreshes)).size(15),
         ]
         .height(Length::FillPortion(2))
