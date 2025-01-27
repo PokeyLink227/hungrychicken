@@ -45,6 +45,7 @@ struct App {
     log: LogPane,
     info: InfoPane,
     control_pane: ControlPane,
+    bot_handle: Option<iced::task::Handle>,
 }
 
 impl App {
@@ -57,14 +58,28 @@ impl App {
         match message {
             Message::Start => {
                 self.state = AppState::Running;
-                Task::perform(monitor_opentime(), |m| m)
+                if self.bot_handle.is_none() {
+                    let (t, h) = Task::abortable(Task::perform(monitor_opentime(), |m| m));
+                    self.bot_handle = Some(h);
+                    t
+                } else {
+                    Task::none()
+                }
             }
             Message::Stop => {
                 self.state = AppState::Stopped;
+                if let Some(h) = &self.bot_handle {
+                    h.abort();
+                    self.bot_handle = None;
+                }
                 Task::none()
             }
             Message::Pause => {
                 self.state = AppState::Paused;
+                if let Some(h) = &self.bot_handle {
+                    h.abort();
+                    self.bot_handle = None;
+                }
                 Task::none()
             }
         }
@@ -81,6 +96,7 @@ impl App {
 
 async fn monitor_opentime() -> Message {
     async_std::task::sleep(Duration::from_secs(5)).await;
+    //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used
     Message::Pause
 }
 
