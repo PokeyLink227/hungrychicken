@@ -1,10 +1,17 @@
+use crate::bot::monitor_opentime;
 use iced::widget::{button, column, container, row, scrollable, text, Column};
-use iced::{Border, Center, Element, Length, Task, Theme};
+use iced::{
+    keyboard::{key, on_key_press, Key, Modifiers},
+    Border, Center, Element, Length, Subscription, Task, Theme,
+};
 use std::time::{Duration, Instant};
+
+mod bot;
 
 pub fn main() -> iced::Result {
     iced::application("Hungry Chicken", App::update, App::view)
         .theme(theme)
+        .subscription(App::subscription)
         .run()
 }
 
@@ -87,17 +94,18 @@ impl App {
 
     fn view(&self) -> Element<Message> {
         row![
-            container(column![self.log.view(), self.info.view()]),
-            container(self.control_pane.view()),
+            container(column![self.log.view(), self.info.view()]).width(Length::FillPortion(3)),
+            container(self.control_pane.view()).width(Length::FillPortion(7)),
         ]
         .into()
     }
-}
 
-async fn monitor_opentime() -> Message {
-    async_std::task::sleep(Duration::from_secs(5)).await;
-    //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used
-    Message::Pause
+    fn subscription(&self) -> Subscription<Message> {
+        on_key_press(|key, mods| match key {
+            Key::Named(key::Named::Escape) => Some(Message::Stop),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Default, Debug)]
@@ -141,7 +149,7 @@ impl ControlPane {
         ])
         .style(bordered_box)
         .height(Length::FillPortion(1))
-        .width(Length::FillPortion(5))
+        .width(Length::Fill)
         .into()
     }
 }
@@ -155,13 +163,13 @@ impl LogPane {
     fn update(&mut self, message: Message) {
         match message {
             Message::Start => {
-                self.log.push_str("Start clicked\n");
+                self.log.push_str("Starting Bot\n");
             }
             Message::Stop => {
-                self.log.push_str("Stop clicked\n");
+                self.log.push_str("Bot Stopped\n");
             }
             Message::Pause => {
-                self.log.push_str("Pause clicked\n");
+                self.log.push_str("Paused\n");
             }
         }
     }
@@ -173,7 +181,7 @@ impl LogPane {
                 .width(Length::Fill),
         )
         .height(Length::FillPortion(7))
-        .width(Length::FillPortion(5))
+        .width(Length::Fill)
         .style(bordered_box)
         .into()
     }
@@ -203,7 +211,7 @@ impl InfoPane {
             text(format!("Refreshes: {:?}", self.num_refreshes)).size(15),
         ])
         .height(Length::FillPortion(2))
-        .width(Length::FillPortion(5))
+        .width(Length::Fill)
         .style(bordered_box)
         .into()
     }
