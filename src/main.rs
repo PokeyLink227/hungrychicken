@@ -95,7 +95,8 @@ impl App {
     fn view(&self) -> Element<Message> {
         row![
             container(column![self.log.view(), self.info.view()]).width(Length::FillPortion(3)),
-            container(self.control_pane.view()).width(Length::FillPortion(7)),
+            container(column![self.control_pane.view(), self.rules_pane.view()])
+                .width(Length::FillPortion(7)),
         ]
         .into()
     }
@@ -151,6 +152,31 @@ impl ControlPane {
         .height(Length::FillPortion(1))
         .width(Length::Fill)
         .into()
+    }
+}
+
+#[derive(Default, Debug)]
+struct RulesPane {
+    rules: Vec<Rule>,
+}
+
+impl RulesPane {
+    fn update(&mut self, message: Message) {
+        match message {
+            _ => {}
+        }
+    }
+
+    fn view(&self) -> Element<Message> {
+        /*
+            pick_list for dropdowns
+            checkbox for enabled
+        */
+        container(column![])
+            .style(bordered_box)
+            .height(Length::FillPortion(9))
+            .width(Length::Fill)
+            .into()
     }
 }
 

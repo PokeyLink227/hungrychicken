@@ -24,8 +24,11 @@ pub struct Rule {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Op {
     Eq,
+    NEq,
     Lt,
+    LtEq,
     Gt,
+    GtEq,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -54,25 +57,37 @@ impl Filter {
         match self {
             Filter::TimeDiff(lhs, rhs, op, val) => match op {
                 Op::Eq => trip.get(*lhs) - trip.get(*rhs) == *val,
+                Op::NEq => trip.get(*lhs) - trip.get(*rhs) != *val,
                 Op::Lt => trip.get(*lhs) - trip.get(*rhs) < *val,
+                Op::LtEq => trip.get(*lhs) - trip.get(*rhs) <= *val,
                 Op::Gt => trip.get(*lhs) - trip.get(*rhs) > *val,
+                Op::GtEq => trip.get(*lhs) - trip.get(*rhs) >= *val,
             },
             Filter::FieldIs(field, op, val) => match op {
                 Op::Eq => trip.get(*field) == *val,
+                Op::NEq => trip.get(*field) != *val,
                 Op::Lt => trip.get(*field) < *val,
+                Op::LtEq => trip.get(*field) <= *val,
                 Op::Gt => trip.get(*field) > *val,
+                Op::GtEq => trip.get(*field) >= *val,
             },
             Filter::DateIs(op, val) => match op {
                 Op::Eq => trip.date == *val,
+                Op::NEq => trip.date != *val,
                 Op::Lt => trip.date < *val,
+                Op::LtEq => trip.date <= *val,
                 Op::Gt => trip.date > *val,
+                Op::GtEq => trip.date >= *val,
             },
             Filter::IncludeLayover(val) => trip.layovers.contains(val),
             Filter::ExcludeLayover(val) => !trip.layovers.contains(val),
             Filter::NumDays(op, val) => match op {
                 Op::Eq => trip.days == *val,
+                Op::NEq => trip.days != *val,
                 Op::Lt => trip.days < *val,
+                Op::LtEq => trip.days <= *val,
                 Op::Gt => trip.days > *val,
+                Op::GtEq => trip.days >= *val,
             },
             Filter::IsPrem => trip.premium,
             Filter::IncludeId(val) => trip.id == *val,
