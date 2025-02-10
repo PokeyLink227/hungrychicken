@@ -16,9 +16,9 @@ use std::{
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rule {
-    name: String,
-    filters: Vec<Filter>,
-    action: BotAction,
+    pub name: String,
+    pub filters: Vec<Filter>,
+    pub action: BotAction,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]

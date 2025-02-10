@@ -1,5 +1,5 @@
-use crate::bot::monitor_opentime;
-use iced::widget::{button, column, container, row, scrollable, text, Column};
+use crate::bot::{monitor_opentime, BotAction, Filter, Rule};
+use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
     Border, Center, Element, Length, Subscription, Task, Theme,
@@ -36,6 +36,10 @@ enum Message {
     Start,
     Stop,
     Pause,
+    NewRule,
+    EnableRule(usize),
+    DisableRule(usize),
+    DeleteRule(usize),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -52,6 +56,7 @@ struct App {
     log: LogPane,
     info: InfoPane,
     control_pane: ControlPane,
+    rules_pane: RulesPane,
     bot_handle: Option<iced::task::Handle>,
 }
 
@@ -60,6 +65,7 @@ impl App {
         // this is where you could loop over update calls to chain mwessages
         self.log.update(message);
         self.control_pane.update(message);
+        self.rules_pane.update(message);
         //self.info.update();
 
         match message {
@@ -89,6 +95,7 @@ impl App {
                 }
                 Task::none()
             }
+            _ => Task::none(),
         }
     }
 
@@ -126,6 +133,7 @@ impl ControlPane {
             Message::Pause => {
                 self.state = AppState::Paused;
             }
+            _ => {}
         }
     }
 
@@ -158,11 +166,26 @@ impl ControlPane {
 #[derive(Default, Debug)]
 struct RulesPane {
     rules: Vec<Rule>,
+    enabled: Vec<bool>,
 }
 
 impl RulesPane {
     fn update(&mut self, message: Message) {
         match message {
+            Message::NewRule => {
+                self.rules.push(Rule {
+                    name: "Test Rule".to_owned(),
+                    filters: Vec::new(),
+                    action: BotAction::Alert,
+                });
+                self.enabled.push(true);
+            }
+            Message::DeleteRule(i) => {
+                self.rules.remove(i);
+                self.enabled.remove(i);
+            }
+            Message::EnableRule(i) => self.enabled[i] = true,
+            Message::DisableRule(i) => self.enabled[i] = false,
             _ => {}
         }
     }
@@ -172,11 +195,39 @@ impl RulesPane {
             pick_list for dropdowns
             checkbox for enabled
         */
-        container(column![])
-            .style(bordered_box)
-            .height(Length::FillPortion(9))
-            .width(Length::Fill)
-            .into()
+        container(scrollable(column![
+            column(
+                self.rules
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| r.view(i, self.enabled[i]))
+            ),
+            button("New Rule").on_press(Message::NewRule),
+        ]))
+        .style(bordered_box)
+        .height(Length::FillPortion(9))
+        .width(Length::Fill)
+        .into()
+    }
+}
+
+impl Rule {
+    fn view(&self, index: usize, state: bool) -> Element<Message> {
+        /*
+            pick_list for dropdowns
+            checkbox for enabled
+        */
+        container(row![
+            text(&self.name),
+            checkbox("Enable", state).on_toggle(move |b| if b {
+                Message::EnableRule(index)
+            } else {
+                Message::DisableRule(index)
+            }),
+            button("Delete").on_press(Message::DeleteRule(index)),
+        ])
+        .style(bordered_box)
+        .into()
     }
 }
 
@@ -197,6 +248,7 @@ impl LogPane {
             Message::Pause => {
                 self.log.push_str("Paused\n");
             }
+            _ => {}
         }
     }
 
