@@ -2,7 +2,7 @@ use crate::bot::{monitor_opentime, BotAction, Filter, Rule};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
-    Border, Center, Element, Length, Subscription, Task, Theme,
+    Border, Center, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
 use std::time::{Duration, Instant};
 
@@ -11,6 +11,7 @@ mod bot;
 pub fn main() -> iced::Result {
     iced::application("Hungry Chicken", App::update, App::view)
         .theme(theme)
+        .window_size((650.0, 800.0))
         .subscription(App::subscription)
         .run()
 }
@@ -20,7 +21,8 @@ fn theme(_state: &App) -> Theme {
 }
 
 fn bordered_box(theme: &Theme) -> container::Style {
-    let s = container::bordered_box(theme);
+    let mut s = container::bordered_box(theme);
+    s.border = s.border.rounded(5);
     s
 }
 
@@ -101,10 +103,12 @@ impl App {
 
     fn view(&self) -> Element<Message> {
         row![
-            container(column![self.log.view(), self.info.view()]).width(Length::FillPortion(3)),
-            container(column![self.control_pane.view(), self.rules_pane.view()])
+            container(column![self.log.view(), self.info.view()].spacing(5))
+                .width(Length::FillPortion(3)),
+            container(column![self.control_pane.view(), self.rules_pane.view()].spacing(5))
                 .width(Length::FillPortion(7)),
         ]
+        .spacing(5)
         .into()
     }
 
@@ -195,16 +199,31 @@ impl RulesPane {
             pick_list for dropdowns
             checkbox for enabled
         */
-        container(scrollable(column![
-            column(
-                self.rules
-                    .iter()
-                    .enumerate()
-                    .map(|(i, r)| r.view(i, self.enabled[i]))
-            ),
-            button("New Rule").on_press(Message::NewRule),
-        ]))
-        .style(bordered_box)
+        container(
+            scrollable(
+                column![
+                    column(
+                        self.rules
+                            .iter()
+                            .enumerate()
+                            .map(|(i, r)| r.view(i, self.enabled[i]))
+                    )
+                    .spacing(5),
+                    container(
+                        button(container("New Rule")
+                            //.center_x(Length::Fill)
+                        )
+                        .on_press(Message::NewRule) //.width(Length::Fill)
+                    )
+                    .center_x(Length::Fill),
+                    //.style(bordered_box),
+                ]
+                .spacing(5),
+            )
+            .spacing(5),
+        )
+        //.style(bordered_box)
+        //.padding(5)
         .height(Length::FillPortion(9))
         .width(Length::Fill)
         .into()
@@ -217,15 +236,20 @@ impl Rule {
             pick_list for dropdowns
             checkbox for enabled
         */
-        container(row![
-            text(&self.name),
-            checkbox("Enable", state).on_toggle(move |b| if b {
-                Message::EnableRule(index)
-            } else {
-                Message::DisableRule(index)
-            }),
-            button("Delete").on_press(Message::DeleteRule(index)),
-        ])
+        container(
+            row![
+                text(&self.name),
+                checkbox("Enable", state).on_toggle(move |b| if b {
+                    Message::EnableRule(index)
+                } else {
+                    Message::DisableRule(index)
+                }),
+                button("Delete").on_press(Message::DeleteRule(index))
+            ]
+            .spacing(10),
+        )
+        .padding(Padding::from(10))
+        .center_x(Length::Fill)
         .style(bordered_box)
         .into()
     }
