@@ -310,7 +310,7 @@ pub async fn monitor_opentime() -> Message {
 
         // TEMP: add and submit a trip
         //add_trip_from_opentime(&mut enigo, "j2B15").await;
-        break;
+        //break;
 
         // sleep for a random ammount of time
         let milis_to_sleep = rand::random_range(800..2000);

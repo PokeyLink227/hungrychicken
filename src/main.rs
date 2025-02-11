@@ -12,8 +12,12 @@ pub fn main() -> iced::Result {
     iced::application("Hungry Chicken", App::update, App::view)
         .theme(theme)
         .window_size((650.0, 800.0))
+        .settings(iced::settings::Settings {
+            id: Some("main_window".to_string()),
+            ..iced::settings::Settings::default()
+        })
         .subscription(App::subscription)
-        .run()
+        .run_with(App::init)
 }
 
 fn theme(_state: &App) -> Theme {
@@ -42,6 +46,7 @@ enum Message {
     EnableRule(usize),
     DisableRule(usize),
     DeleteRule(usize),
+    GotWindowId(iced::window::Id),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -54,6 +59,7 @@ enum AppState {
 
 #[derive(Debug, Default)]
 struct App {
+    window_id: Option<iced::window::Id>,
     state: AppState,
     log: LogPane,
     info: InfoPane,
@@ -63,6 +69,15 @@ struct App {
 }
 
 impl App {
+    fn init() -> (App, Task<Message>) {
+        (
+            App::default(),
+            Task::map(iced::window::get_latest(), |m| {
+                Message::GotWindowId(m.unwrap())
+            }),
+        )
+    }
+
     fn update(&mut self, message: Message) -> Task<Message> {
         // this is where you could loop over update calls to chain mwessages
         self.log.update(message);
@@ -95,6 +110,11 @@ impl App {
                     h.abort();
                     self.bot_handle = None;
                 }
+                iced::window::gain_focus(self.window_id.unwrap())
+                //Task::none()
+            }
+            Message::GotWindowId(i) => {
+                self.window_id = Some(i);
                 Task::none()
             }
             _ => Task::none(),
