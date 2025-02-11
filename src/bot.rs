@@ -255,8 +255,8 @@ pub async fn monitor_opentime() -> Message {
 
     loop {
         // click mouse to focus window
-        enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
-        enigo.button(Button::Left, Click);
+        let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
+        let _ = enigo.button(Button::Left, Click);
 
         // refresh page
         if last_refresh.elapsed() > refresh_interval {
@@ -267,10 +267,10 @@ pub async fn monitor_opentime() -> Message {
         }
 
         // copy text
-        enigo.key(Key::Control, Press);
-        enigo.key(Key::Unicode('a'), Click);
-        enigo.key(Key::Unicode('c'), Click);
-        enigo.key(Key::Control, Release);
+        let _ = enigo.key(Key::Control, Press);
+        let _ = enigo.key(Key::Unicode('a'), Click);
+        let _ = enigo.key(Key::Unicode('c'), Click);
+        let _ = enigo.key(Key::Control, Release);
         async_std::task::sleep(Duration::from_millis(500)).await;
 
         // process text
@@ -332,14 +332,14 @@ pub async fn monitor_opentime() -> Message {
 
 async fn refresh_page(enigo: &mut Enigo, loc: (i32, i32)) {
     // refresh page
-    enigo.key(Key::Control, Press);
-    enigo.key(Key::Unicode('r'), Click);
-    enigo.key(Key::Control, Release);
+    let _ = enigo.key(Key::Control, Press);
+    let _ = enigo.key(Key::Unicode('r'), Click);
+    let _ = enigo.key(Key::Control, Release);
     async_std::task::sleep(Duration::from_millis(500)).await;
 
     // click mouse in proper area
-    enigo.move_mouse(loc.0, loc.1, Coordinate::Abs);
-    enigo.button(Button::Left, Click);
+    let _ = enigo.move_mouse(loc.0, loc.1, Coordinate::Abs);
+    let _ = enigo.button(Button::Left, Click);
 }
 
 async fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) {
@@ -358,20 +358,20 @@ async fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
 // these durations should be randomized if possible, should total to ~1 sec
 async fn hit_button(enigo: &mut Enigo, button_name: &str) {
     // open quick find bar
-    enigo.key(Key::Unicode('/'), Click);
+    let _ = enigo.key(Key::Unicode('/'), Click);
     async_std::task::sleep(Duration::from_millis(25)).await;
 
     // type button name
-    enigo.text(button_name);
+    let _ = enigo.text(button_name);
     async_std::task::sleep(Duration::from_millis(25)).await;
 
     // navigate to button
-    enigo.key(Key::Shift, Press);
-    enigo.key(Key::Tab, Click);
-    enigo.key(Key::Shift, Release);
+    let _ = enigo.key(Key::Shift, Press);
+    let _ = enigo.key(Key::Tab, Click);
+    let _ = enigo.key(Key::Shift, Release);
     async_std::task::sleep(Duration::from_millis(50)).await;
 
     // click button
-    enigo.key(Key::Return, Click);
+    let _ = enigo.key(Key::Return, Click);
     async_std::task::sleep(Duration::from_millis(5)).await;
 }
