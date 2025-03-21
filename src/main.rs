@@ -30,6 +30,13 @@ fn bordered_box(theme: &Theme) -> container::Style {
     s
 }
 
+fn filter_box(theme: &Theme) -> container::Style {
+    let mut s = container::bordered_box(theme);
+    s.border = s.border.rounded(5);
+    // change color
+    s
+}
+
 #[derive(Debug, Clone, Copy)]
 enum MonitorMessage {
     Start,
@@ -47,6 +54,8 @@ enum Message {
     DisableRule(usize),
     DeleteRule(usize),
     GotWindowId(iced::window::Id),
+    NewFilter(usize),
+    DeleteFilter(usize, usize),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -199,7 +208,7 @@ impl RulesPane {
             Message::NewRule => {
                 self.rules.push(Rule {
                     name: "Test Rule".to_owned(),
-                    filters: Vec::new(),
+                    filters: vec![Filter::IsPrem, Filter::IsPrem],
                     action: BotAction::Alert,
                 });
                 self.enabled.push(true);
@@ -256,21 +265,48 @@ impl Rule {
             pick_list for dropdowns
             checkbox for enabled
         */
-        container(
+        container(column![
+            container(
+                row![
+                    text(&self.name),
+                    checkbox("Enable", state).on_toggle(move |b| if b {
+                        Message::EnableRule(index)
+                    } else {
+                        Message::DisableRule(index)
+                    }),
+                    button("X").on_press(Message::DeleteRule(index))
+                ]
+                .spacing(10),
+            )
+            .padding(Padding::from(10))
+            .center_x(Length::Fill),
+            column(self.filters.iter().enumerate().map(|(i, r)| r.view(i))).spacing(5),
+            button("Add Filter").on_press(Message::NewFilter(index))
+        ])
+        .padding(Padding::from(10))
+        .center_x(Length::Fill)
+        .into()
+    }
+}
+
+impl Filter {
+    fn view(&self, index: usize) -> Element<Message> {
+        container(column![
             row![
-                text(&self.name),
-                checkbox("Enable", state).on_toggle(move |b| if b {
-                    Message::EnableRule(index)
-                } else {
-                    Message::DisableRule(index)
-                }),
+                text(self.as_str()),
                 button("Delete").on_press(Message::DeleteRule(index))
             ]
             .spacing(10),
-        )
+            match self {
+                Filter::IsPrem => {
+                    text("TEST")
+                }
+                _ => text("UNSUPPORTED"),
+            }
+        ])
         .padding(Padding::from(10))
         .center_x(Length::Fill)
-        .style(bordered_box)
+        .style(filter_box)
         .into()
     }
 }

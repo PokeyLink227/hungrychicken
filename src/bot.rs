@@ -1,5 +1,5 @@
 use crate::Message;
-use clipboard_win::{formats, get_clipboard, set_clipboard};
+//use clipboard_win::{formats, get_clipboard, set_clipboard};
 use enigo::{
     Button, Coordinate,
     Direction::{Click, Press, Release},
@@ -53,6 +53,19 @@ pub enum Filter {
 }
 
 impl Filter {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Filter::TimeDiff(_, _, _, _) => "TimeDiff",
+            Filter::FieldIs(_, _, _) => "FieldIs",
+            Filter::DateIs(_, _) => "DateIs",
+            Filter::IncludeLayover(_) => "IncludeLay",
+            Filter::ExcludeLayover(_) => "ExcludeLay",
+            Filter::NumDays(_, _) => "NumDays",
+            Filter::IsPrem => "IsPrem",
+            Filter::IncludeId(_) => "IsID",
+        }
+    }
+
     pub fn eval(&self, trip: &Trip) -> bool {
         match self {
             Filter::TimeDiff(lhs, rhs, op, val) => match op {
@@ -234,7 +247,7 @@ pub async fn monitor_opentime() -> Message {
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
 
     let loc_opentime = (500, 500);
-    let mut page_text = String::new();
+    //let mut page_text = String::new();
     let mut last_refresh = Instant::now();
     let mut refresh_interval = Duration::from_secs(20);
 
@@ -274,7 +287,8 @@ pub async fn monitor_opentime() -> Message {
         async_std::task::sleep(Duration::from_millis(500)).await;
 
         // process text
-        let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
+        //let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
+        let result: String = "To set clipboard".to_owned();
         let trips: Vec<Trip> = re_opentime_trip
             .captures_iter(&result)
             .map(|c| c.extract())
@@ -313,6 +327,7 @@ pub async fn monitor_opentime() -> Message {
         //break;
 
         // sleep for a random ammount of time
+        /*
         let milis_to_sleep = rand::random_range(800..2000);
         let mut m = 0;
         while m < milis_to_sleep {
@@ -324,10 +339,11 @@ pub async fn monitor_opentime() -> Message {
             async_std::task::sleep(Duration::from_millis(50)).await;
             m += 50;
         }
+        */
     }
 
     //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used and there is no async sleep after it
-    Message::Pause
+    //Message::Pause
 }
 
 async fn refresh_page(enigo: &mut Enigo, loc: (i32, i32)) {
