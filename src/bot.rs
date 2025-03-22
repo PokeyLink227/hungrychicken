@@ -38,12 +38,12 @@ impl Display for Op {
             f,
             "{}",
             match self {
-                Op::Eq => "Eq",
-                Op::NEq => "NEq",
-                Op::Lt => "Lt",
-                Op::LtEq => "LtEq",
-                Op::GtEq => "GtEq",
-                Op::Gt => "Gt",
+                Op::Eq => "=",
+                Op::NEq => "!=",
+                Op::Lt => "<",
+                Op::LtEq => "<=",
+                Op::GtEq => ">=",
+                Op::Gt => ">",
             }
         )
     }
@@ -87,7 +87,7 @@ pub enum Filter {
 }
 
 impl Filter {
-    pub fn as_str(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Filter::TimeDiff(_, _, _, _) => "TimeDiff",
             Filter::FieldIs(_, _, _) => "FieldIs",
@@ -97,6 +97,19 @@ impl Filter {
             Filter::NumDays(_, _) => "NumDays",
             Filter::IsPrem => "IsPrem",
             Filter::IncludeId(_) => "IsID",
+        }
+    }
+
+    pub fn as_string(&self) -> String {
+        match self {
+            Filter::TimeDiff(lhs, rhs, op, t) => format!("{} - {} {} {}", lhs, rhs, op, t),
+            Filter::FieldIs(f, op, t) => format!("{} {} {}", f, op, t),
+            Filter::DateIs(op, d) => format!("Date {} {}", op, d),
+            Filter::IncludeLayover(s) => format!("Include {}", s),
+            Filter::ExcludeLayover(s) => format!("Exclude {}", s),
+            Filter::NumDays(op, num) => format!("Days {} {}", op, num),
+            Filter::IsPrem => "Is Premium".to_owned(),
+            Filter::IncludeId(s) => format!("Trip ID is {}", s),
         }
     }
 
@@ -216,10 +229,20 @@ impl Default for Time {
 
 impl Time {
     pub fn from_num_str(s: &str) -> Result<Self, ParseTimeError> {
-        Ok(Time {
-            hours: s[0..2].parse().or(Err(ParseTimeError))?,
-            minutes: s[2..3].parse().or(Err(ParseTimeError))?,
-        })
+        if s.len() == 4 {
+            println!("ASD");
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[2..4].parse().or(Err(ParseTimeError))?,
+            })
+        } else if s.len() == 5 {
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[3..5].parse().or(Err(ParseTimeError))?,
+            })
+        } else {
+            Err(ParseTimeError)
+        }
     }
 }
 
@@ -256,10 +279,26 @@ impl FromStr for Time {
     type Err = ParseTimeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Time {
-            hours: s[0..2].parse().or(Err(ParseTimeError))?,
-            minutes: s[3..4].parse().or(Err(ParseTimeError))?,
-        })
+        if s.len() == 4 {
+            println!("ASD");
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[2..4].parse().or(Err(ParseTimeError))?,
+            })
+        } else if s.len() == 5 {
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[3..5].parse().or(Err(ParseTimeError))?,
+            })
+        } else {
+            Err(ParseTimeError)
+        }
+    }
+}
+
+impl Display for Time {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:02.2}:{:02.2}", self.hours, self.minutes)
     }
 }
 
@@ -310,6 +349,12 @@ fn month_from_str(s: &str) -> Result<u8, ParseDateError> {
         "NOV" => Ok(11),
         "DEC" => Ok(12),
         _ => Err(ParseDateError),
+    }
+}
+
+impl Display for Date {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {:02.2}, {:04.4}", self.month, self.day, self.year)
     }
 }
 

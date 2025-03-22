@@ -1,4 +1,4 @@
-use crate::bot::{monitor_opentime, BotAction, Field, Filter, FilterType, Op, Rule};
+use crate::bot::{monitor_opentime, BotAction, Date, Field, Filter, FilterType, Op, Rule, Time};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
@@ -63,6 +63,8 @@ enum Message {
     NewFilter(usize, FilterType),
     DeleteFilter(usize, usize),
     UpdateFilter(usize, usize, Filter),
+    UpdateEntry(usize, usize, String),
+    SubmitTimeEntry(usize, usize, Filter),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -207,6 +209,7 @@ impl ControlPane {
 struct RulesPane {
     rules: Vec<Rule>,
     enabled: Vec<bool>,
+    entries: Vec<Vec<String>>,
 }
 
 impl RulesPane {
@@ -219,19 +222,41 @@ impl RulesPane {
                     action: BotAction::Alert,
                 });
                 self.enabled.push(true);
+                self.entries.push(Vec::new());
             }
             Message::DeleteRule(i) => {
                 self.rules.remove(i);
                 self.enabled.remove(i);
+                self.entries.remove(i);
             }
             Message::EnableRule(i) => self.enabled[i] = true,
             Message::DisableRule(i) => self.enabled[i] = false,
-            Message::NewFilter(i, f) => self.rules[i].filters.push(f.into()),
+            Message::NewFilter(i, f) => {
+                self.rules[i].filters.push(f.into());
+                self.entries[i].push(String::new());
+            }
             Message::DeleteFilter(ri, i) => {
                 self.rules[ri].filters.remove(i);
+                self.entries[ri].remove(i);
             }
             Message::UpdateFilter(ri, i, f) => {
                 self.rules[ri].filters[i] = f;
+            }
+            Message::UpdateEntry(ri, i, s) => {
+                self.entries[ri][i] = s;
+            }
+            Message::SubmitTimeEntry(ri, i, f) => {
+                if let Ok(t) = self.entries[ri][i].parse() {
+                    match f {
+                        Filter::FieldIs(f, o, _) => {
+                            self.rules[ri].filters[i] = Filter::FieldIs(f, o, t)
+                        }
+                        Filter::TimeDiff(f1, f2, o, _) => {
+                            self.rules[ri].filters[i] = Filter::TimeDiff(f1, f2, o, t)
+                        }
+                        _ => {}
+                    }
+                }
             }
             _ => {}
         }
@@ -245,12 +270,11 @@ impl RulesPane {
         container(
             scrollable(
                 column![
-                    column(
-                        self.rules
-                            .iter()
-                            .enumerate()
-                            .map(|(i, r)| r.view(i, self.enabled[i]))
-                    )
+                    column(self.rules.iter().enumerate().map(|(i, r)| r.view(
+                        i,
+                        self.enabled[i],
+                        &self.entries[i]
+                    )))
                     .spacing(5),
                     container(
                         button(container("New Rule")
@@ -274,7 +298,7 @@ impl RulesPane {
 }
 
 impl Rule {
-    fn view(&self, index: usize, state: bool) -> Element<Message> {
+    fn view(&self, index: usize, state: bool, entries: &[String]) -> Element<Message> {
         /*
             pick_list for dropdowns
             checkbox for enabled
@@ -308,7 +332,7 @@ impl Rule {
                 self.filters
                     .iter()
                     .enumerate()
-                    .map(|(i, r)| r.view(index, i))
+                    .map(|(i, r)| r.view(index, i, &entries[i]))
             )
             .spacing(5),
             iced::widget::pick_list(filters, Some(FilterType::NewFilter), move |f| {
@@ -323,7 +347,7 @@ impl Rule {
 }
 
 impl Filter {
-    fn view(&self, ruleindex: usize, index: usize) -> Element<Message> {
+    fn view(&self, ruleindex: usize, index: usize, entry: &str) -> Element<Message> {
         let fields = [
             Field::Report,
             Field::Depart,
@@ -335,59 +359,126 @@ impl Filter {
         let hours: Vec<u8> = (0..24).into_iter().collect();
         let minutes: Vec<u8> = (0..60).into_iter().collect();
 
-        container(row![
-            container(
-                column![
-                    text(self.as_str()),
-                    button("Delete").on_press(Message::DeleteFilter(ruleindex, index))
-                ]
-                .spacing(10)
-            )
-            .center_x(Length::Fill)
-            .width(Length::FillPortion(2)),
-            container(match *self {
-                Filter::IsPrem => {
-                    container(text("Premium only"))
+        container(
+            column![
+                container(row![
+                    text(self.as_string()),
+                    container(button("Delete").on_press(Message::DeleteFilter(ruleindex, index)))
+                        .align_right(Length::Fill)
+                ]),
+                match *self {
+                    Filter::IsPrem => {
+                        container(text("Premium only"))
+                    }
+                    Filter::TimeDiff(f1, f2, op, t) => {
+                        container(row![
+                            iced::widget::pick_list(fields, Some(f1), move |new_f1| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::TimeDiff(new_f1, f2, op, t),
+                                )
+                            }),
+                            iced::widget::pick_list(fields, Some(f2), move |new_f2| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::TimeDiff(f1, new_f2, op, t),
+                                )
+                            }),
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::TimeDiff(f1, f2, new_op, t),
+                                )
+                            }),
+                            iced::widget::text_input("time", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitTimeEntry(
+                                    ruleindex,
+                                    index,
+                                    self.clone()
+                                )),
+                        ])
+                    }
+                    Filter::FieldIs(f, op, t) => {
+                        container(row![
+                            iced::widget::pick_list(fields, Some(f), move |new_f| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::FieldIs(new_f, op, t),
+                                )
+                            }),
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::FieldIs(f, new_op, t),
+                                )
+                            }),
+                            iced::widget::text_input("time", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitTimeEntry(
+                                    ruleindex,
+                                    index,
+                                    self.clone()
+                                )),
+                        ])
+                    }
+                    Filter::DateIs(op, d) => {
+                        container(row![
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(ruleindex, index, Filter::DateIs(new_op, d))
+                            }),
+                            iced::widget::pick_list([], Some(d.month), move |new_month| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::DateIs(
+                                        op,
+                                        Date {
+                                            month: new_month,
+                                            ..d
+                                        },
+                                    ),
+                                )
+                            }),
+                            iced::widget::pick_list([], Some(d.month), move |new_month| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::DateIs(
+                                        op,
+                                        Date {
+                                            month: new_month,
+                                            ..d
+                                        },
+                                    ),
+                                )
+                            }),
+                            iced::widget::pick_list([], Some(d.month), move |new_month| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::DateIs(
+                                        op,
+                                        Date {
+                                            month: new_month,
+                                            ..d
+                                        },
+                                    ),
+                                )
+                            }),
+                        ])
+                    }
+                    //Filter::IncludeLayover(s) => {}
+                    _ => container(text("UNSUPPORTED")),
                 }
-                Filter::TimeDiff(f1, f2, op, t) => {
-                    container(row![
-                        iced::widget::pick_list(fields, Some(f1), move |new_f1| {
-                            Message::UpdateFilter(
-                                ruleindex,
-                                index,
-                                Filter::TimeDiff(new_f1, f2, op, t),
-                            )
-                        }),
-                        text("-"),
-                        iced::widget::pick_list(fields, Some(f2), move |new_f2| {
-                            Message::UpdateFilter(
-                                ruleindex,
-                                index,
-                                Filter::TimeDiff(f1, new_f2, op, t),
-                            )
-                        }),
-                        iced::widget::pick_list(ops, Some(op), move |new_op| {
-                            Message::UpdateFilter(
-                                ruleindex,
-                                index,
-                                Filter::TimeDiff(f1, f2, new_op, t),
-                            )
-                        })
-                        .width(Length::Shrink),
-                        iced::widget::pick_list(hours, Some(t.hours), move |new_hours| {
-                            Message::UpdateFilter(ruleindex, index, Filter::TimeDiff(f1, f2, op, t))
-                        }),
-                        text(":"),
-                        iced::widget::pick_list(minutes, Some(t.hours), move |new_minutes| {
-                            Message::UpdateFilter(ruleindex, index, Filter::TimeDiff(f1, f2, op, t))
-                        })
-                    ])
-                }
-                _ => container(text("UNSUPPORTED")),
-            })
-            .width(Length::FillPortion(8))
-            .center_y(Length::Shrink)
-        ])
+            ]
+            .spacing(10),
+        )
         .padding(Padding::from(10))
         .center_x(Length::Fill)
         .style(filter_box)
