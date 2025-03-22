@@ -9,6 +9,7 @@ use rand::Rng;
 use regex::{Regex, RegexBuilder};
 use std::{
     cell::LazyCell,
+    fmt::Display,
     ops::Sub,
     str::FromStr,
     time::{Duration, Instant},
@@ -108,6 +109,57 @@ impl Filter {
     }
 }
 
+impl From<FilterType> for Filter {
+    fn from(value: FilterType) -> Self {
+        match value {
+            FilterType::NewFilter => panic!("no filter selected"),
+            FilterType::TimeDiff => {
+                Filter::TimeDiff(Field::Report, Field::Report, Op::Eq, Time::default())
+            }
+            FilterType::FieldIs => Filter::FieldIs(Field::Report, Op::Eq, Time::default()),
+            FilterType::DateIs => Filter::DateIs(Op::Eq, Date::default()),
+            FilterType::IncludeLayover => Filter::IncludeLayover(String::new()),
+            FilterType::ExcludeLayover => Filter::ExcludeLayover(String::new()),
+            FilterType::NumDays => Filter::NumDays(Op::Eq, 1),
+            FilterType::IsPrem => Filter::IsPrem,
+            FilterType::IncludeId => Filter::IncludeLayover(String::new()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum FilterType {
+    NewFilter,
+    TimeDiff,
+    FieldIs,
+    DateIs,
+    IncludeLayover,
+    ExcludeLayover,
+    NumDays,
+    IsPrem,
+    IncludeId,
+}
+
+impl Display for FilterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                FilterType::NewFilter => "NewFilter",
+                FilterType::TimeDiff => "TimeDiff",
+                FilterType::FieldIs => "FieldIs",
+                FilterType::DateIs => "DateIs",
+                FilterType::IncludeLayover => "IncludeLay",
+                FilterType::ExcludeLayover => "ExcludeLay",
+                FilterType::NumDays => "NumDays",
+                FilterType::IsPrem => "IsPrem",
+                FilterType::IncludeId => "IsID",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BotAction {
     Alert,
@@ -118,6 +170,15 @@ pub enum BotAction {
 pub struct Time {
     hours: u8,
     minutes: u8,
+}
+
+impl Default for Time {
+    fn default() -> Self {
+        Time {
+            hours: 0,
+            minutes: 0,
+        }
+    }
 }
 
 impl Time {
@@ -174,6 +235,16 @@ pub struct Date {
     year: u16,
     month: u8,
     day: u8,
+}
+
+impl Default for Date {
+    fn default() -> Self {
+        Date {
+            year: 2025,
+            month: 1,
+            day: 1,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

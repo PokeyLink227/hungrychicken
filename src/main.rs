@@ -1,8 +1,8 @@
-use crate::bot::{monitor_opentime, BotAction, Filter, Rule};
+use crate::bot::{monitor_opentime, BotAction, Filter, FilterType, Rule};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
-    Border, Center, Element, Length, Padding, Size, Subscription, Task, Theme,
+    Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
 use std::time::{Duration, Instant};
 
@@ -33,6 +33,12 @@ fn bordered_box(theme: &Theme) -> container::Style {
 fn filter_box(theme: &Theme) -> container::Style {
     let mut s = container::bordered_box(theme);
     s.border = s.border.rounded(5);
+    s.border.color = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
     // change color
     s
 }
@@ -54,7 +60,7 @@ enum Message {
     DisableRule(usize),
     DeleteRule(usize),
     GotWindowId(iced::window::Id),
-    NewFilter(usize),
+    NewFilter(usize, FilterType),
     DeleteFilter(usize, usize),
 }
 
@@ -219,6 +225,10 @@ impl RulesPane {
             }
             Message::EnableRule(i) => self.enabled[i] = true,
             Message::DisableRule(i) => self.enabled[i] = false,
+            Message::NewFilter(i, f) => self.rules[i].filters.push(f.into()),
+            Message::DeleteFilter(ri, i) => {
+                self.rules[ri].filters.remove(i);
+            }
             _ => {}
         }
     }
@@ -265,6 +275,16 @@ impl Rule {
             pick_list for dropdowns
             checkbox for enabled
         */
+        let filters = [
+            FilterType::TimeDiff,
+            FilterType::FieldIs,
+            FilterType::DateIs,
+            FilterType::IncludeLayover,
+            FilterType::ExcludeLayover,
+            FilterType::NumDays,
+            FilterType::IsPrem,
+            FilterType::IncludeId,
+        ];
         container(column![
             container(
                 row![
@@ -280,9 +300,18 @@ impl Rule {
             )
             .padding(Padding::from(10))
             .center_x(Length::Fill),
-            column(self.filters.iter().enumerate().map(|(i, r)| r.view(i))).spacing(5),
-            button("Add Filter").on_press(Message::NewFilter(index))
+            column(
+                self.filters
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| r.view(index, i))
+            )
+            .spacing(5),
+            iced::widget::pick_list(filters, Some(FilterType::NewFilter), move |f| {
+                Message::NewFilter(index, f)
+            }),
         ])
+        .style(bordered_box)
         .padding(Padding::from(10))
         .center_x(Length::Fill)
         .into()
@@ -290,16 +319,16 @@ impl Rule {
 }
 
 impl Filter {
-    fn view(&self, index: usize) -> Element<Message> {
-        container(column![
-            row![
+    fn view(&self, ruleindex: usize, index: usize) -> Element<Message> {
+        container(row![
+            column![
                 text(self.as_str()),
-                button("Delete").on_press(Message::DeleteRule(index))
+                button("Delete").on_press(Message::DeleteFilter(ruleindex, index))
             ]
             .spacing(10),
             match self {
                 Filter::IsPrem => {
-                    text("TEST")
+                    text("test")
                 }
                 _ => text("UNSUPPORTED"),
             }
@@ -328,7 +357,9 @@ impl LogPane {
             Message::Pause => {
                 self.log.push_str("Paused\n");
             }
-            _ => {}
+            m => {
+                self.log.push_str(&format!("{:?}\n", m));
+            }
         }
     }
 
