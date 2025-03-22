@@ -28,8 +28,25 @@ pub enum Op {
     NEq,
     Lt,
     LtEq,
-    Gt,
     GtEq,
+    Gt,
+}
+
+impl Display for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Op::Eq => "Eq",
+                Op::NEq => "NEq",
+                Op::Lt => "Lt",
+                Op::LtEq => "LtEq",
+                Op::GtEq => "GtEq",
+                Op::Gt => "Gt",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -39,6 +56,22 @@ pub enum Field {
     Arrive,
     Block,
     Credit,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Field::Report => "Report",
+                Field::Depart => "Depart",
+                Field::Arrive => "Arrive",
+                Field::Block => "Block",
+                Field::Credit => "Credit",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -168,8 +201,8 @@ pub enum BotAction {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Time {
-    hours: u8,
-    minutes: u8,
+    pub hours: u8,
+    pub minutes: u8,
 }
 
 impl Default for Time {
@@ -232,9 +265,9 @@ impl FromStr for Time {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Date {
-    year: u16,
-    month: u8,
-    day: u8,
+    pub year: u16,
+    pub month: u8,
+    pub day: u8,
 }
 
 impl Default for Date {

@@ -1,4 +1,4 @@
-use crate::bot::{monitor_opentime, BotAction, Filter, FilterType, Rule};
+use crate::bot::{monitor_opentime, BotAction, Field, Filter, FilterType, Op, Rule};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
@@ -50,7 +50,7 @@ enum MonitorMessage {
     Pause,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
     Start,
     Stop,
@@ -62,6 +62,7 @@ enum Message {
     GotWindowId(iced::window::Id),
     NewFilter(usize, FilterType),
     DeleteFilter(usize, usize),
+    UpdateFilter(usize, usize, Filter),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -95,9 +96,9 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         // this is where you could loop over update calls to chain mwessages
-        self.log.update(message);
-        self.control_pane.update(message);
-        self.rules_pane.update(message);
+        self.log.update(message.clone());
+        self.control_pane.update(message.clone());
+        self.rules_pane.update(message.clone());
         //self.info.update();
 
         match message {
@@ -214,7 +215,7 @@ impl RulesPane {
             Message::NewRule => {
                 self.rules.push(Rule {
                     name: "Test Rule".to_owned(),
-                    filters: vec![Filter::IsPrem, Filter::IsPrem],
+                    filters: vec![],
                     action: BotAction::Alert,
                 });
                 self.enabled.push(true);
@@ -228,6 +229,9 @@ impl RulesPane {
             Message::NewFilter(i, f) => self.rules[i].filters.push(f.into()),
             Message::DeleteFilter(ri, i) => {
                 self.rules[ri].filters.remove(i);
+            }
+            Message::UpdateFilter(ri, i, f) => {
+                self.rules[ri].filters[i] = f;
             }
             _ => {}
         }
@@ -320,18 +324,69 @@ impl Rule {
 
 impl Filter {
     fn view(&self, ruleindex: usize, index: usize) -> Element<Message> {
+        let fields = [
+            Field::Report,
+            Field::Depart,
+            Field::Arrive,
+            Field::Block,
+            Field::Credit,
+        ];
+        let ops = [Op::Eq, Op::NEq, Op::Lt, Op::LtEq, Op::GtEq, Op::Gt];
+        let hours: Vec<u8> = (0..24).into_iter().collect();
+        let minutes: Vec<u8> = (0..60).into_iter().collect();
+
         container(row![
-            column![
-                text(self.as_str()),
-                button("Delete").on_press(Message::DeleteFilter(ruleindex, index))
-            ]
-            .spacing(10),
-            match self {
+            container(
+                column![
+                    text(self.as_str()),
+                    button("Delete").on_press(Message::DeleteFilter(ruleindex, index))
+                ]
+                .spacing(10)
+            )
+            .center_x(Length::Fill)
+            .width(Length::FillPortion(2)),
+            container(match *self {
                 Filter::IsPrem => {
-                    text("test")
+                    container(text("Premium only"))
                 }
-                _ => text("UNSUPPORTED"),
-            }
+                Filter::TimeDiff(f1, f2, op, t) => {
+                    container(row![
+                        iced::widget::pick_list(fields, Some(f1), move |new_f1| {
+                            Message::UpdateFilter(
+                                ruleindex,
+                                index,
+                                Filter::TimeDiff(new_f1, f2, op, t),
+                            )
+                        }),
+                        text("-"),
+                        iced::widget::pick_list(fields, Some(f2), move |new_f2| {
+                            Message::UpdateFilter(
+                                ruleindex,
+                                index,
+                                Filter::TimeDiff(f1, new_f2, op, t),
+                            )
+                        }),
+                        iced::widget::pick_list(ops, Some(op), move |new_op| {
+                            Message::UpdateFilter(
+                                ruleindex,
+                                index,
+                                Filter::TimeDiff(f1, f2, new_op, t),
+                            )
+                        })
+                        .width(Length::Shrink),
+                        iced::widget::pick_list(hours, Some(t.hours), move |new_hours| {
+                            Message::UpdateFilter(ruleindex, index, Filter::TimeDiff(f1, f2, op, t))
+                        }),
+                        text(":"),
+                        iced::widget::pick_list(minutes, Some(t.hours), move |new_minutes| {
+                            Message::UpdateFilter(ruleindex, index, Filter::TimeDiff(f1, f2, op, t))
+                        })
+                    ])
+                }
+                _ => container(text("UNSUPPORTED")),
+            })
+            .width(Length::FillPortion(8))
+            .center_y(Length::Shrink)
         ])
         .padding(Padding::from(10))
         .center_x(Length::Fill)
