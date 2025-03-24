@@ -64,10 +64,7 @@ enum Message {
     DeleteFilter(usize, usize),
     UpdateFilter(usize, usize, Filter),
     UpdateEntry(usize, usize, String),
-    SubmitTimeEntry(usize, usize, Filter),
-    SubmitDateEntry(usize, usize, Filter),
-    SubmitStrEntry(usize, usize, Filter),
-    SubmitDayEntry(usize, usize, Filter),
+    SubmitEntry(usize, usize, Filter),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -248,19 +245,39 @@ impl RulesPane {
             Message::UpdateEntry(ri, i, s) => {
                 self.entries[ri][i] = s;
             }
-            Message::SubmitTimeEntry(ri, i, f) => {
-                if let Ok(t) = self.entries[ri][i].parse() {
-                    match f {
-                        Filter::FieldIs(f, o, _) => {
-                            self.rules[ri].filters[i] = Filter::FieldIs(f, o, t)
-                        }
-                        Filter::TimeDiff(f1, f2, o, _) => {
-                            self.rules[ri].filters[i] = Filter::TimeDiff(f1, f2, o, t)
-                        }
-                        _ => {}
+            Message::SubmitEntry(ri, i, f) => match f {
+                Filter::FieldIs(f, o, _) => {
+                    if let Ok(t) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::FieldIs(f, o, t);
                     }
                 }
-            }
+                Filter::TimeDiff(f1, f2, o, _) => {
+                    if let Ok(t) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::TimeDiff(f1, f2, o, t)
+                    }
+                }
+
+                Filter::DateIs(op, _) => {
+                    if let Ok(d) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::DateIs(op, d)
+                    }
+                }
+                Filter::NumDays(op, _) => {
+                    if let Ok(num) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::NumDays(op, num)
+                    }
+                }
+                Filter::IncludeLayover(_) => {
+                    self.rules[ri].filters[i] = Filter::IncludeLayover(self.entries[ri][i].clone())
+                }
+                Filter::ExcludeLayover(_) => {
+                    self.rules[ri].filters[i] = Filter::ExcludeLayover(self.entries[ri][i].clone())
+                }
+                Filter::IncludeId(_) => {
+                    self.rules[ri].filters[i] = Filter::IncludeId(self.entries[ri][i].clone())
+                }
+                Filter::IsPrem => {}
+            },
             _ => {}
         }
     }
@@ -402,11 +419,7 @@ impl Filter {
                             }),
                             iced::widget::text_input("time", &format!("{}", entry))
                                 .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                                .on_submit(Message::SubmitTimeEntry(
-                                    ruleindex,
-                                    index,
-                                    self.clone()
-                                )),
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
                         ])
                     }
                     Filter::FieldIs(f, op, t) => {
@@ -427,11 +440,7 @@ impl Filter {
                             }),
                             iced::widget::text_input("time", &format!("{}", entry))
                                 .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                                .on_submit(Message::SubmitTimeEntry(
-                                    ruleindex,
-                                    index,
-                                    self.clone()
-                                )),
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
                         ])
                     }
                     Filter::DateIs(op, d) => {
@@ -441,11 +450,7 @@ impl Filter {
                             }),
                             iced::widget::text_input("date", &format!("{}", entry))
                                 .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                                .on_submit(Message::SubmitDateEntry(
-                                    ruleindex,
-                                    index,
-                                    self.clone()
-                                )),
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
                         ])
                     }
                     Filter::IncludeLayover(_) => {
@@ -454,7 +459,7 @@ impl Filter {
                             &format!("{}", entry)
                         )
                         .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                        .on_submit(Message::SubmitStrEntry(ruleindex, index, self.clone())),])
+                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
                     }
                     Filter::ExcludeLayover(_) => {
                         container(row![iced::widget::text_input(
@@ -462,7 +467,7 @@ impl Filter {
                             &format!("{}", entry)
                         )
                         .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                        .on_submit(Message::SubmitStrEntry(ruleindex, index, self.clone())),])
+                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
                     }
                     Filter::NumDays(op, num) => {
                         container(row![
@@ -475,7 +480,7 @@ impl Filter {
                             }),
                             iced::widget::text_input("Number of Days", &format!("{}", entry))
                                 .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                                .on_submit(Message::SubmitDayEntry(ruleindex, index, self.clone())),
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
                         ])
                     }
                     Filter::IncludeId(_) => {
@@ -484,7 +489,7 @@ impl Filter {
                             &format!("{}", entry)
                         )
                         .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                        .on_submit(Message::SubmitStrEntry(ruleindex, index, self.clone())),])
+                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
                     }
                 }
             ]

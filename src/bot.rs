@@ -105,11 +105,11 @@ impl Filter {
             Filter::TimeDiff(lhs, rhs, op, t) => format!("{} - {} {} {}", lhs, rhs, op, t),
             Filter::FieldIs(f, op, t) => format!("{} {} {}", f, op, t),
             Filter::DateIs(op, d) => format!("Date {} {}", op, d),
-            Filter::IncludeLayover(s) => format!("Include {}", s),
-            Filter::ExcludeLayover(s) => format!("Exclude {}", s),
+            Filter::IncludeLayover(s) => format!("Include [{}]", s),
+            Filter::ExcludeLayover(s) => format!("Exclude [{}]", s),
             Filter::NumDays(op, num) => format!("Days {} {}", op, num),
             Filter::IsPrem => "Is Premium".to_owned(),
-            Filter::IncludeId(s) => format!("Trip ID is {}", s),
+            Filter::IncludeId(s) => format!("Trip ID is \"{}\"", s),
         }
     }
 
