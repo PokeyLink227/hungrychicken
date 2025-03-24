@@ -9,6 +9,7 @@ use rand::Rng;
 use regex::{Regex, RegexBuilder};
 use std::{
     cell::LazyCell,
+    fmt::Display,
     ops::Sub,
     str::FromStr,
     time::{Duration, Instant},
@@ -48,8 +49,25 @@ pub enum Op {
     NEq,
     Lt,
     LtEq,
-    Gt,
     GtEq,
+    Gt,
+}
+
+impl Display for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Op::Eq => "=",
+                Op::NEq => "!=",
+                Op::Lt => "<",
+                Op::LtEq => "<=",
+                Op::GtEq => ">=",
+                Op::Gt => ">",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -59,6 +77,22 @@ pub enum Field {
     Arrive,
     Block,
     Credit,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Field::Report => "Report",
+                Field::Depart => "Depart",
+                Field::Arrive => "Arrive",
+                Field::Block => "Block",
+                Field::Credit => "Credit",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -74,6 +108,32 @@ pub enum Filter {
 }
 
 impl Filter {
+    pub fn name(&self) -> &str {
+        match self {
+            Filter::TimeDiff(_, _, _, _) => "TimeDiff",
+            Filter::FieldIs(_, _, _) => "FieldIs",
+            Filter::DateIs(_, _) => "DateIs",
+            Filter::IncludeLayover(_) => "IncludeLay",
+            Filter::ExcludeLayover(_) => "ExcludeLay",
+            Filter::NumDays(_, _) => "NumDays",
+            Filter::IsPrem => "IsPrem",
+            Filter::IncludeId(_) => "IsID",
+        }
+    }
+
+    pub fn as_string(&self) -> String {
+        match self {
+            Filter::TimeDiff(lhs, rhs, op, t) => format!("{} - {} {} {}", lhs, rhs, op, t),
+            Filter::FieldIs(f, op, t) => format!("{} {} {}", f, op, t),
+            Filter::DateIs(op, d) => format!("Date {} {}", op, d),
+            Filter::IncludeLayover(s) => format!("Include [{}]", s),
+            Filter::ExcludeLayover(s) => format!("Exclude [{}]", s),
+            Filter::NumDays(op, num) => format!("Days {} {}", op, num),
+            Filter::IsPrem => "Is Premium".to_owned(),
+            Filter::IncludeId(s) => format!("Trip ID is \"{}\"", s),
+        }
+    }
+
     pub fn eval(&self, trip: &Trip) -> bool {
         match self {
             Filter::TimeDiff(lhs, rhs, op, val) => match op {
@@ -116,6 +176,57 @@ impl Filter {
     }
 }
 
+impl From<FilterType> for Filter {
+    fn from(value: FilterType) -> Self {
+        match value {
+            FilterType::NewFilter => panic!("no filter selected"),
+            FilterType::TimeDiff => {
+                Filter::TimeDiff(Field::Report, Field::Report, Op::Eq, Time::default())
+            }
+            FilterType::FieldIs => Filter::FieldIs(Field::Report, Op::Eq, Time::default()),
+            FilterType::DateIs => Filter::DateIs(Op::Eq, Date::default()),
+            FilterType::IncludeLayover => Filter::IncludeLayover(String::new()),
+            FilterType::ExcludeLayover => Filter::ExcludeLayover(String::new()),
+            FilterType::NumDays => Filter::NumDays(Op::Eq, 1),
+            FilterType::IsPrem => Filter::IsPrem,
+            FilterType::IncludeId => Filter::IncludeLayover(String::new()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum FilterType {
+    NewFilter,
+    TimeDiff,
+    FieldIs,
+    DateIs,
+    IncludeLayover,
+    ExcludeLayover,
+    NumDays,
+    IsPrem,
+    IncludeId,
+}
+
+impl Display for FilterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                FilterType::NewFilter => "NewFilter",
+                FilterType::TimeDiff => "TimeDiff",
+                FilterType::FieldIs => "FieldIs",
+                FilterType::DateIs => "DateIs",
+                FilterType::IncludeLayover => "IncludeLay",
+                FilterType::ExcludeLayover => "ExcludeLay",
+                FilterType::NumDays => "NumDays",
+                FilterType::IsPrem => "IsPrem",
+                FilterType::IncludeId => "IsID",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum BotAction {
@@ -126,16 +237,34 @@ pub enum BotAction {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Time {
-    hours: u8,
-    minutes: u8,
+    pub hours: u8,
+    pub minutes: u8,
+}
+
+impl Default for Time {
+    fn default() -> Self {
+        Time {
+            hours: 0,
+            minutes: 0,
+        }
+    }
 }
 
 impl Time {
     pub fn from_num_str(s: &str) -> Result<Self, ParseTimeError> {
-        Ok(Time {
-            hours: s[0..2].parse().or(Err(ParseTimeError))?,
-            minutes: s[2..3].parse().or(Err(ParseTimeError))?,
-        })
+        if s.len() == 4 {
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[2..4].parse().or(Err(ParseTimeError))?,
+            })
+        } else if s.len() == 5 {
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[3..5].parse().or(Err(ParseTimeError))?,
+            })
+        } else {
+            Err(ParseTimeError)
+        }
     }
 }
 
@@ -172,18 +301,43 @@ impl FromStr for Time {
     type Err = ParseTimeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Time {
-            hours: s[0..2].parse().or(Err(ParseTimeError))?,
-            minutes: s[3..4].parse().or(Err(ParseTimeError))?,
-        })
+        if s.len() == 4 {
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[2..4].parse().or(Err(ParseTimeError))?,
+            })
+        } else if s.len() == 5 {
+            Ok(Time {
+                hours: s[0..2].parse().or(Err(ParseTimeError))?,
+                minutes: s[3..5].parse().or(Err(ParseTimeError))?,
+            })
+        } else {
+            Err(ParseTimeError)
+        }
+    }
+}
+
+impl Display for Time {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:02.2}:{:02.2}", self.hours, self.minutes)
     }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Date {
-    year: u16,
-    month: u8,
-    day: u8,
+    pub year: u16,
+    pub month: u8,
+    pub day: u8,
+}
+
+impl Default for Date {
+    fn default() -> Self {
+        Date {
+            year: 2025,
+            month: 1,
+            day: 1,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -216,6 +370,12 @@ fn month_from_str(s: &str) -> Result<u8, ParseDateError> {
         "NOV" => Ok(11),
         "DEC" => Ok(12),
         _ => Err(ParseDateError),
+    }
+}
+
+impl Display for Date {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {:02.2}, {:04.4}", self.month, self.day, self.year)
     }
 }
 
@@ -262,7 +422,7 @@ pub async fn monitor_opentime() -> Message {
     image_update_time.save(format!("time.png")).unwrap();
 
     let loc_opentime = (500, 500);
-    let mut page_text = String::new();
+    //let mut page_text = String::new();
     let mut last_refresh = Instant::now();
     let mut refresh_interval = Duration::from_secs(90);
 
@@ -488,7 +648,7 @@ pub async fn monitor_opentime() -> Message {
     */
 
     //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used and there is no async sleep after it
-    Message::Pause
+    //Message::Pause
 }
 
 async fn refresh_page(enigo: &mut Enigo, loc: (i32, i32)) {

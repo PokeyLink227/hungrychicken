@@ -1,8 +1,8 @@
-use crate::bot::{monitor_opentime, BotAction, Filter, Rule};
+use crate::bot::{monitor_opentime, BotAction, Date, Field, Filter, FilterType, Op, Rule, Time};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
-    Border, Center, Element, Length, Padding, Size, Subscription, Task, Theme,
+    Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
 use std::time::{Duration, Instant};
 
@@ -30,6 +30,19 @@ fn bordered_box(theme: &Theme) -> container::Style {
     s
 }
 
+fn filter_box(theme: &Theme) -> container::Style {
+    let mut s = container::bordered_box(theme);
+    s.border = s.border.rounded(5);
+    s.border.color = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    // change color
+    s
+}
+
 #[derive(Debug, Clone, Copy)]
 enum MonitorMessage {
     Start,
@@ -37,7 +50,7 @@ enum MonitorMessage {
     Pause,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
     Start,
     Stop,
@@ -47,6 +60,11 @@ enum Message {
     DisableRule(usize),
     DeleteRule(usize),
     GotWindowId(iced::window::Id),
+    NewFilter(usize, FilterType),
+    DeleteFilter(usize, usize),
+    UpdateFilter(usize, usize, Filter),
+    UpdateEntry(usize, usize, String),
+    SubmitEntry(usize, usize, Filter),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -80,9 +98,9 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         // this is where you could loop over update calls to chain mwessages
-        self.log.update(message);
-        self.control_pane.update(message);
-        self.rules_pane.update(message);
+        self.log.update(message.clone());
+        self.control_pane.update(message.clone());
+        self.rules_pane.update(message.clone());
         //self.info.update();
 
         match message {
@@ -191,6 +209,7 @@ impl ControlPane {
 struct RulesPane {
     rules: Vec<Rule>,
     enabled: Vec<bool>,
+    entries: Vec<Vec<String>>,
 }
 
 impl RulesPane {
@@ -199,17 +218,66 @@ impl RulesPane {
             Message::NewRule => {
                 self.rules.push(Rule {
                     name: "Test Rule".to_owned(),
-                    filters: Vec::new(),
+                    filters: vec![],
                     action: BotAction::Alert,
                 });
                 self.enabled.push(true);
+                self.entries.push(Vec::new());
             }
             Message::DeleteRule(i) => {
                 self.rules.remove(i);
                 self.enabled.remove(i);
+                self.entries.remove(i);
             }
             Message::EnableRule(i) => self.enabled[i] = true,
             Message::DisableRule(i) => self.enabled[i] = false,
+            Message::NewFilter(i, f) => {
+                self.rules[i].filters.push(f.into());
+                self.entries[i].push(String::new());
+            }
+            Message::DeleteFilter(ri, i) => {
+                self.rules[ri].filters.remove(i);
+                self.entries[ri].remove(i);
+            }
+            Message::UpdateFilter(ri, i, f) => {
+                self.rules[ri].filters[i] = f;
+            }
+            Message::UpdateEntry(ri, i, s) => {
+                self.entries[ri][i] = s;
+            }
+            Message::SubmitEntry(ri, i, f) => match f {
+                Filter::FieldIs(f, o, _) => {
+                    if let Ok(t) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::FieldIs(f, o, t);
+                    }
+                }
+                Filter::TimeDiff(f1, f2, o, _) => {
+                    if let Ok(t) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::TimeDiff(f1, f2, o, t)
+                    }
+                }
+
+                Filter::DateIs(op, _) => {
+                    if let Ok(d) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::DateIs(op, d)
+                    }
+                }
+                Filter::NumDays(op, _) => {
+                    if let Ok(num) = self.entries[ri][i].parse() {
+                        self.rules[ri].filters[i] = Filter::NumDays(op, num)
+                    }
+                }
+                Filter::IncludeLayover(_) => {
+                    self.rules[ri].filters[i] = Filter::IncludeLayover(self.entries[ri][i].clone())
+                }
+                Filter::ExcludeLayover(_) => {
+                    self.rules[ri].filters[i] = Filter::ExcludeLayover(self.entries[ri][i].clone())
+                }
+                Filter::IncludeId(_) => {
+                    self.rules[ri].filters[i] = Filter::IncludeId(self.entries[ri][i].clone())
+                }
+                Filter::IsPrem => {}
+            },
             _ => {}
         }
     }
@@ -222,12 +290,11 @@ impl RulesPane {
         container(
             scrollable(
                 column![
-                    column(
-                        self.rules
-                            .iter()
-                            .enumerate()
-                            .map(|(i, r)| r.view(i, self.enabled[i]))
-                    )
+                    column(self.rules.iter().enumerate().map(|(i, r)| r.view(
+                        i,
+                        self.enabled[i],
+                        &self.entries[i]
+                    )))
                     .spacing(5),
                     container(
                         button(container("New Rule")
@@ -251,26 +318,186 @@ impl RulesPane {
 }
 
 impl Rule {
-    fn view(&self, index: usize, state: bool) -> Element<Message> {
+    fn view(&self, index: usize, state: bool, entries: &[String]) -> Element<Message> {
         /*
             pick_list for dropdowns
             checkbox for enabled
         */
+        let filters = [
+            FilterType::TimeDiff,
+            FilterType::FieldIs,
+            FilterType::DateIs,
+            FilterType::IncludeLayover,
+            FilterType::ExcludeLayover,
+            FilterType::NumDays,
+            FilterType::IsPrem,
+            FilterType::IncludeId,
+        ];
         container(
-            row![
-                text(&self.name),
-                checkbox("Enable", state).on_toggle(move |b| if b {
-                    Message::EnableRule(index)
-                } else {
-                    Message::DisableRule(index)
-                }),
-                button("Delete").on_press(Message::DeleteRule(index))
+            column![
+                container(
+                    row![
+                        text(&self.name),
+                        checkbox("Enable", state).on_toggle(move |b| if b {
+                            Message::EnableRule(index)
+                        } else {
+                            Message::DisableRule(index)
+                        }),
+                        button("X").on_press(Message::DeleteRule(index))
+                    ]
+                    .spacing(10),
+                )
+                //.padding(Padding::from(10))
+                .center_x(Length::Fill),
+                column(
+                    self.filters
+                        .iter()
+                        .enumerate()
+                        .map(|(i, r)| r.view(index, i, &entries[i]))
+                )
+                .spacing(5),
+                container(iced::widget::pick_list(
+                    filters,
+                    Some(FilterType::NewFilter),
+                    move |f| { Message::NewFilter(index, f) }
+                ))
+                .center_x(Length::Fill),
             ]
-            .spacing(10),
+            .spacing(5),
         )
-        .padding(Padding::from(10))
-        .center_x(Length::Fill)
         .style(bordered_box)
+        .padding(Padding::from(5))
+        .center_x(Length::Fill)
+        .into()
+    }
+}
+
+impl Filter {
+    fn view(&self, ruleindex: usize, index: usize, entry: &str) -> Element<Message> {
+        let fields = [
+            Field::Report,
+            Field::Depart,
+            Field::Arrive,
+            Field::Block,
+            Field::Credit,
+        ];
+        let ops = [Op::Eq, Op::NEq, Op::Lt, Op::LtEq, Op::GtEq, Op::Gt];
+
+        container(
+            column![
+                container(row![
+                    text(self.as_string()),
+                    container(button("Delete").on_press(Message::DeleteFilter(ruleindex, index)))
+                        .align_right(Length::Fill)
+                ]),
+                match *self {
+                    Filter::IsPrem => {
+                        container(text("Premium only"))
+                    }
+                    Filter::TimeDiff(f1, f2, op, t) => {
+                        container(row![
+                            iced::widget::pick_list(fields, Some(f1), move |new_f1| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::TimeDiff(new_f1, f2, op, t),
+                                )
+                            }),
+                            iced::widget::pick_list(fields, Some(f2), move |new_f2| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::TimeDiff(f1, new_f2, op, t),
+                                )
+                            }),
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::TimeDiff(f1, f2, new_op, t),
+                                )
+                            }),
+                            iced::widget::text_input("time", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
+                    }
+                    Filter::FieldIs(f, op, t) => {
+                        container(row![
+                            iced::widget::pick_list(fields, Some(f), move |new_f| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::FieldIs(new_f, op, t),
+                                )
+                            }),
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::FieldIs(f, new_op, t),
+                                )
+                            }),
+                            iced::widget::text_input("time", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
+                    }
+                    Filter::DateIs(op, d) => {
+                        container(row![
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(ruleindex, index, Filter::DateIs(new_op, d))
+                            }),
+                            iced::widget::text_input("date", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
+                    }
+                    Filter::IncludeLayover(_) => {
+                        container(row![iced::widget::text_input(
+                            "Airport Code",
+                            &format!("{}", entry)
+                        )
+                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
+                    }
+                    Filter::ExcludeLayover(_) => {
+                        container(row![iced::widget::text_input(
+                            "Airport Code",
+                            &format!("{}", entry)
+                        )
+                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
+                    }
+                    Filter::NumDays(op, num) => {
+                        container(row![
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::NumDays(new_op, num),
+                                )
+                            }),
+                            iced::widget::text_input("Number of Days", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
+                    }
+                    Filter::IncludeId(_) => {
+                        container(row![iced::widget::text_input(
+                            "Trip ID",
+                            &format!("{}", entry)
+                        )
+                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
+                    }
+                }
+            ]
+            .spacing(5),
+        )
+        .padding(Padding::from(5))
+        .center_x(Length::Fill)
+        .style(filter_box)
         .into()
     }
 }
@@ -292,7 +519,9 @@ impl LogPane {
             Message::Pause => {
                 self.log.push_str("Paused\n");
             }
-            _ => {}
+            m => {
+                self.log.push_str(&format!("{:?}\n", m));
+            }
         }
     }
 
