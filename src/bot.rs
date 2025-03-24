@@ -21,6 +21,27 @@ pub struct Rule {
     pub action: BotAction,
 }
 
+impl Rule {
+    pub fn eval(&self, trip: &Trip) -> bool {
+        for filter in &self.filters {
+            if !filter.eval(trip) {
+                println!("trip {} failed filter {:?}", trip.id, filter);
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn get_action(&self, trip: &Trip) -> BotAction {
+        if self.eval(trip) {
+            self.action
+        } else {
+            BotAction::Ignore
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Op {
     Eq,
@@ -96,9 +117,11 @@ impl Filter {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
 pub enum BotAction {
-    Alert,
-    Pickup,
+    Ignore = 1,
+    Alert = 2,
+    Pickup = 3,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -171,7 +194,7 @@ impl FromStr for Date {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Date {
-            year: 2024,
+            year: 2025,
             month: month_from_str(&s[2..5])?,
             day: s[0..2].parse().or(Err(ParseDateError))?,
         })
@@ -232,27 +255,164 @@ pub async fn monitor_opentime() -> Message {
             .unwrap()
     });
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
+    let screen = screenshots::Screen::all().unwrap()[0];
+
+    //let mut image_update_time = screen.capture_area(307, 368, 240, 9).unwrap();
+    let mut image_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
+    image_update_time.save(format!("time.png")).unwrap();
 
     let loc_opentime = (500, 500);
     let mut page_text = String::new();
     let mut last_refresh = Instant::now();
-    let mut refresh_interval = Duration::from_secs(20);
+    let mut refresh_interval = Duration::from_secs(90);
 
-    let rule = Rule {
-        name: "trips after 0700".to_owned(),
-        filters: vec![Filter::FieldIs(
-            Field::Report,
-            Op::Gt,
-            Time {
-                hours: 7,
-                minutes: 0,
-            },
-        )],
-        action: BotAction::Alert,
-    };
+    let rules = vec![
+        Rule {
+            name: "trips 1 day".to_owned(),
+            filters: vec![
+                Filter::NumDays(Op::Eq, 1),
+                Filter::DateIs(
+                    Op::Eq,
+                    Date {
+                        year: 2025,
+                        month: 3,
+                        day: 11,
+                    },
+                ),
+            ],
+            action: BotAction::Pickup,
+        },
+        Rule {
+            name: "trips 1 day".to_owned(),
+            filters: vec![
+                Filter::NumDays(Op::Eq, 1),
+                Filter::DateIs(
+                    Op::GtEq,
+                    Date {
+                        year: 2025,
+                        month: 3,
+                        day: 24,
+                    },
+                ),
+                Filter::DateIs(
+                    Op::LtEq,
+                    Date {
+                        year: 2025,
+                        month: 3,
+                        day: 28,
+                    },
+                ),
+            ],
+            action: BotAction::Pickup,
+        },
+    ];
 
     async_std::task::sleep(Duration::from_secs(1)).await;
 
+    // click mouse to focus window
+    let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
+    let _ = enigo.button(Button::Left, Click);
+    async_std::task::sleep(Duration::from_secs(1)).await;
+
+    loop {
+        // assume the browser window is still focused
+
+        // refresh page
+        if last_refresh.elapsed() > refresh_interval {
+            last_refresh = Instant::now();
+            refresh_interval = Duration::from_secs(rand::random_range(90..180));
+            println!("refreshing and waiting {}", refresh_interval.as_secs());
+            refresh_page(&mut enigo, loc_opentime).await;
+        }
+
+        // take screencap to determine if page has changed
+        // TODO: compare to blank image to ensure page has finished loading
+        println!("checking time");
+        let new_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
+        if !new_update_time.pixels().eq(image_update_time.pixels()) {
+            image_update_time = new_update_time;
+
+            println!("Copying screen");
+            // copy text
+            let _ = enigo.key(Key::Control, Press);
+            let _ = enigo.key(Key::Unicode('a'), Click);
+            let _ = enigo.key(Key::Unicode('c'), Click);
+            let _ = enigo.key(Key::Control, Release);
+            //let _ = enigo.key(Key::Tab, Click);
+            async_std::task::sleep(Duration::from_millis(500)).await;
+
+            // process text
+            let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
+            let trips: Vec<Trip> = re_opentime_trip
+                .captures_iter(&result)
+                .map(|c| c.extract())
+                .map(
+                    |(_, [id, date, days, rep, dep, arr, blk, crd, lay, prem])| Trip {
+                        id: id.to_owned(),
+                        date: date.parse().unwrap(),
+                        days: days.parse().unwrap(),
+                        report: rep.parse().unwrap(),
+                        depart: dep.parse().unwrap(),
+                        arrive: arr.parse().unwrap(),
+                        block: Time::from_num_str(blk).unwrap(),
+                        credit: Time::from_num_str(crd).unwrap(),
+                        layovers: lay.split_whitespace().map(|s| s.to_owned()).collect(),
+                        premium: !prem.is_empty(),
+                    },
+                )
+                .collect();
+
+            // apply filters
+            let filtered_trips: Vec<(BotAction, &str)> =
+                trips
+                    .iter()
+                    .map(|t| {
+                        (
+                            rules.iter().map(|r| r.get_action(t)).fold(
+                                BotAction::Ignore,
+                                |a, b| if b as u8 > a as u8 { b } else { a },
+                            ),
+                            t.id.as_str(),
+                        )
+                    })
+                    .collect();
+            /*
+            let filtered_trips: Vec<(BotAction, &str)> = trips
+                .iter()
+                .filter(|t| {
+                    rule.filters
+                        .iter()
+                        .map(|f| f.eval(t))
+                        .fold(true, |a, b| a & b)
+                })
+                .collect();
+                */
+
+            // alert if any match
+            for t in &filtered_trips {
+                println!("{:?} {}", t.0, t.1);
+                if t.0 == BotAction::Pickup {
+                    add_trip_from_opentime(&mut enigo, t.1).await;
+                    return Message::Pause;
+                }
+            }
+        }
+
+        // sleep for a random ammount of time
+        let milis_to_sleep = rand::random_range(800..2000);
+        let mut m = 0;
+        while m < milis_to_sleep {
+            // check if Escape key is pressed
+
+            if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
+                return Message::Pause;
+            }
+            async_std::task::sleep(Duration::from_millis(50)).await;
+            m += 50;
+        }
+    }
+
+    /*
     loop {
         // click mouse to focus window
         let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
@@ -325,6 +485,7 @@ pub async fn monitor_opentime() -> Message {
             m += 50;
         }
     }
+    */
 
     //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used and there is no async sleep after it
     Message::Pause
@@ -349,29 +510,37 @@ async fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) {
 
 async fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
     hit_button(enigo, "submit").await;
-    async_std::task::sleep(Duration::from_millis(2000)).await; // this delay needs to wait until the page has loaded
+    async_std::task::sleep(Duration::from_millis(1500)).await; // this delay needs to wait until the page has loaded
     hit_button(enigo, "add").await;
-    //hit_button(enigo, trip_id).await;
-    //hit_button(enigo, "it r").await;
+    async_std::task::sleep(Duration::from_millis(1500)).await; // this delay needs to wait until the page has loaded
+    hit_button(enigo, trip_id).await;
+    hit_button(enigo, "it r").await;
 }
 
 // these durations should be randomized if possible, should total to ~1 sec
 async fn hit_button(enigo: &mut Enigo, button_name: &str) {
+    println!("hitting [{}] button", button_name);
+
     // open quick find bar
+    println!("hitting /");
     let _ = enigo.key(Key::Unicode('/'), Click);
-    async_std::task::sleep(Duration::from_millis(25)).await;
+    async_std::task::sleep(Duration::from_millis(28)).await;
 
     // type button name
+    println!("hitting trip id");
     let _ = enigo.text(button_name);
-    async_std::task::sleep(Duration::from_millis(25)).await;
+    async_std::task::sleep(Duration::from_millis(17)).await;
 
     // navigate to button
+    println!("hitting shoft+tab");
+    //let _ = enigo.key(Key::Tab, Click);
     let _ = enigo.key(Key::Shift, Press);
     let _ = enigo.key(Key::Tab, Click);
     let _ = enigo.key(Key::Shift, Release);
-    async_std::task::sleep(Duration::from_millis(50)).await;
+    async_std::task::sleep(Duration::from_millis(31)).await;
 
     // click button
+    println!("hitting enter");
     let _ = enigo.key(Key::Return, Click);
     async_std::task::sleep(Duration::from_millis(5)).await;
 }
