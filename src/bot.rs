@@ -1,5 +1,5 @@
 use crate::Message;
-//use clipboard_win::{formats, get_clipboard, set_clipboard};
+use clipboard_win::{formats, get_clipboard, set_clipboard};
 use enigo::{
     Button, Coordinate,
     Direction::{Click, Press, Release},
@@ -434,8 +434,7 @@ pub async fn monitor_opentime() -> Message {
         async_std::task::sleep(Duration::from_millis(500)).await;
 
         // process text
-        //let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
-        let result: String = "To set clipboard".to_owned();
+        let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
         let trips: Vec<Trip> = re_opentime_trip
             .captures_iter(&result)
             .map(|c| c.extract())
@@ -474,7 +473,6 @@ pub async fn monitor_opentime() -> Message {
         //break;
 
         // sleep for a random ammount of time
-        /*
         let milis_to_sleep = rand::random_range(800..2000);
         let mut m = 0;
         while m < milis_to_sleep {
@@ -486,7 +484,6 @@ pub async fn monitor_opentime() -> Message {
             async_std::task::sleep(Duration::from_millis(50)).await;
             m += 50;
         }
-        */
     }
 
     //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used and there is no async sleep after it
