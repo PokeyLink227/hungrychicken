@@ -65,6 +65,9 @@ enum Message {
     UpdateFilter(usize, usize, Filter),
     UpdateEntry(usize, usize, String),
     SubmitTimeEntry(usize, usize, Filter),
+    SubmitDateEntry(usize, usize, Filter),
+    SubmitStrEntry(usize, usize, Filter),
+    SubmitDayEntry(usize, usize, Filter),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -313,34 +316,40 @@ impl Rule {
             FilterType::IsPrem,
             FilterType::IncludeId,
         ];
-        container(column![
-            container(
-                row![
-                    text(&self.name),
-                    checkbox("Enable", state).on_toggle(move |b| if b {
-                        Message::EnableRule(index)
-                    } else {
-                        Message::DisableRule(index)
-                    }),
-                    button("X").on_press(Message::DeleteRule(index))
-                ]
-                .spacing(10),
-            )
-            .padding(Padding::from(10))
-            .center_x(Length::Fill),
-            column(
-                self.filters
-                    .iter()
-                    .enumerate()
-                    .map(|(i, r)| r.view(index, i, &entries[i]))
-            )
+        container(
+            column![
+                container(
+                    row![
+                        text(&self.name),
+                        checkbox("Enable", state).on_toggle(move |b| if b {
+                            Message::EnableRule(index)
+                        } else {
+                            Message::DisableRule(index)
+                        }),
+                        button("X").on_press(Message::DeleteRule(index))
+                    ]
+                    .spacing(10),
+                )
+                //.padding(Padding::from(10))
+                .center_x(Length::Fill),
+                column(
+                    self.filters
+                        .iter()
+                        .enumerate()
+                        .map(|(i, r)| r.view(index, i, &entries[i]))
+                )
+                .spacing(5),
+                container(iced::widget::pick_list(
+                    filters,
+                    Some(FilterType::NewFilter),
+                    move |f| { Message::NewFilter(index, f) }
+                ))
+                .center_x(Length::Fill),
+            ]
             .spacing(5),
-            iced::widget::pick_list(filters, Some(FilterType::NewFilter), move |f| {
-                Message::NewFilter(index, f)
-            }),
-        ])
+        )
         .style(bordered_box)
-        .padding(Padding::from(10))
+        .padding(Padding::from(5))
         .center_x(Length::Fill)
         .into()
     }
@@ -356,8 +365,6 @@ impl Filter {
             Field::Credit,
         ];
         let ops = [Op::Eq, Op::NEq, Op::Lt, Op::LtEq, Op::GtEq, Op::Gt];
-        let hours: Vec<u8> = (0..24).into_iter().collect();
-        let minutes: Vec<u8> = (0..60).into_iter().collect();
 
         container(
             column![
@@ -432,54 +439,58 @@ impl Filter {
                             iced::widget::pick_list(ops, Some(op), move |new_op| {
                                 Message::UpdateFilter(ruleindex, index, Filter::DateIs(new_op, d))
                             }),
-                            iced::widget::pick_list([], Some(d.month), move |new_month| {
-                                Message::UpdateFilter(
+                            iced::widget::text_input("date", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitDateEntry(
                                     ruleindex,
                                     index,
-                                    Filter::DateIs(
-                                        op,
-                                        Date {
-                                            month: new_month,
-                                            ..d
-                                        },
-                                    ),
-                                )
-                            }),
-                            iced::widget::pick_list([], Some(d.month), move |new_month| {
-                                Message::UpdateFilter(
-                                    ruleindex,
-                                    index,
-                                    Filter::DateIs(
-                                        op,
-                                        Date {
-                                            month: new_month,
-                                            ..d
-                                        },
-                                    ),
-                                )
-                            }),
-                            iced::widget::pick_list([], Some(d.month), move |new_month| {
-                                Message::UpdateFilter(
-                                    ruleindex,
-                                    index,
-                                    Filter::DateIs(
-                                        op,
-                                        Date {
-                                            month: new_month,
-                                            ..d
-                                        },
-                                    ),
-                                )
-                            }),
+                                    self.clone()
+                                )),
                         ])
                     }
-                    //Filter::IncludeLayover(s) => {}
-                    _ => container(text("UNSUPPORTED")),
+                    Filter::IncludeLayover(_) => {
+                        container(row![iced::widget::text_input(
+                            "Airport Code",
+                            &format!("{}", entry)
+                        )
+                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                        .on_submit(Message::SubmitStrEntry(ruleindex, index, self.clone())),])
+                    }
+                    Filter::ExcludeLayover(_) => {
+                        container(row![iced::widget::text_input(
+                            "Airport Code",
+                            &format!("{}", entry)
+                        )
+                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                        .on_submit(Message::SubmitStrEntry(ruleindex, index, self.clone())),])
+                    }
+                    Filter::NumDays(op, num) => {
+                        container(row![
+                            iced::widget::pick_list(ops, Some(op), move |new_op| {
+                                Message::UpdateFilter(
+                                    ruleindex,
+                                    index,
+                                    Filter::NumDays(new_op, num),
+                                )
+                            }),
+                            iced::widget::text_input("Number of Days", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitDayEntry(ruleindex, index, self.clone())),
+                        ])
+                    }
+                    Filter::IncludeId(_) => {
+                        container(row![iced::widget::text_input(
+                            "Trip ID",
+                            &format!("{}", entry)
+                        )
+                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                        .on_submit(Message::SubmitStrEntry(ruleindex, index, self.clone())),])
+                    }
                 }
             ]
-            .spacing(10),
+            .spacing(5),
         )
-        .padding(Padding::from(10))
+        .padding(Padding::from(5))
         .center_x(Length::Fill)
         .style(filter_box)
         .into()

@@ -230,7 +230,6 @@ impl Default for Time {
 impl Time {
     pub fn from_num_str(s: &str) -> Result<Self, ParseTimeError> {
         if s.len() == 4 {
-            println!("ASD");
             Ok(Time {
                 hours: s[0..2].parse().or(Err(ParseTimeError))?,
                 minutes: s[2..4].parse().or(Err(ParseTimeError))?,
@@ -280,7 +279,6 @@ impl FromStr for Time {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() == 4 {
-            println!("ASD");
             Ok(Time {
                 hours: s[0..2].parse().or(Err(ParseTimeError))?,
                 minutes: s[2..4].parse().or(Err(ParseTimeError))?,
