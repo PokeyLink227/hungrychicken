@@ -22,6 +22,7 @@ use std::{
 pub struct BotConfig {
     pub updated_time_pos: (u32, u32),
     pub refresh_interval: (u32, u32),
+    pub refresh: [u32; 4],
 }
 
 impl BotConfig {
@@ -43,6 +44,7 @@ impl BotConfig {
         let conf = BotConfig {
             updated_time_pos: (0, 0),
             refresh_interval: (30, 90),
+            refresh: [50, 50, 20, 20],
         };
 
         let js: String = match serde_json::to_string(&conf) {
@@ -485,8 +487,16 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
     let screen = screenshots::Screen::all().unwrap()[0];
 
     //let mut image_update_time = screen.capture_area(307, 368, 240, 9).unwrap();
-    let mut image_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
-    image_update_time.save(format!("time.png")).unwrap();
+    //let mut image_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
+    let mut image_update_time = screen
+        .capture_area(
+            config.updated_time_pos.0 as i32,
+            config.updated_time_pos.1 as i32,
+            240,
+            9,
+        )
+        .unwrap();
+    //image_update_time.save(format!("time.png")).unwrap();
 
     let loc_opentime = (500, 500);
     //let mut page_text = String::new();
@@ -500,6 +510,15 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
     let _ = enigo.button(Button::Left, Click);
     async_std::task::sleep(Duration::from_secs(1)).await;
 
+    let load_icon = screen
+        .capture_area(
+            config.refresh[0] as i32,
+            config.refresh[1] as i32,
+            config.refresh[2],
+            config.refresh[3],
+        )
+        .unwrap();
+
     loop {
         // assume the browser window is still focused
 
@@ -508,7 +527,29 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
             last_refresh = Instant::now();
             refresh_interval = Duration::from_secs(rand::random_range(90..180));
             println!("refreshing and waiting {}", refresh_interval.as_secs());
-            refresh_page(&mut enigo, loc_opentime).await;
+            // refresh page
+            let _ = enigo.key(Key::Control, Press);
+            let _ = enigo.key(Key::Unicode('r'), Click);
+            let _ = enigo.key(Key::Control, Release);
+            async_std::task::sleep(Duration::from_millis(500)).await;
+
+            // wait for page to finish loading
+            while screen
+                .capture_area(
+                    config.refresh[0] as i32,
+                    config.refresh[1] as i32,
+                    config.refresh[2],
+                    config.refresh[3],
+                )
+                .unwrap()
+                != load_icon
+            {
+                async_std::task::sleep(Duration::from_millis(10)).await;
+            }
+
+            // click mouse in proper area
+            let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
+            let _ = enigo.button(Button::Left, Click);
         }
 
         // take screencap to determine if page has changed
@@ -677,18 +718,6 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
 
     //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used and there is no async sleep after it
     //Message::Pause
-}
-
-async fn refresh_page(enigo: &mut Enigo, loc: (i32, i32)) {
-    // refresh page
-    let _ = enigo.key(Key::Control, Press);
-    let _ = enigo.key(Key::Unicode('r'), Click);
-    let _ = enigo.key(Key::Control, Release);
-    async_std::task::sleep(Duration::from_millis(500)).await;
-
-    // click mouse in proper area
-    let _ = enigo.move_mouse(loc.0, loc.1, Coordinate::Abs);
-    let _ = enigo.button(Button::Left, Click);
 }
 
 async fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) {
