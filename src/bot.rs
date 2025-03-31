@@ -556,7 +556,8 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         // take screencap to determine if page has changed
         // TODO: compare to blank image to ensure page has finished loading
         //println!("checking time");
-        let new_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
+        let new_update_time = screen.capture_area(config.updated_time_pos.0 as i32,
+        config.updated_time_pos.1 as i32, 240, 9).unwrap();
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
             image_update_time = new_update_time;
 
