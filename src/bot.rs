@@ -390,6 +390,9 @@ impl FromStr for Date {
     type Err = ParseDateError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() != 5 {
+            return Err(ParseDateError);
+        }
         Ok(Date {
             year: 2025,
             month: month_from_str(&s[2..5])?,
@@ -418,7 +421,27 @@ fn month_from_str(s: &str) -> Result<u8, ParseDateError> {
 
 impl Display for Date {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {:02.2}, {:04.4}", self.month, self.day, self.year)
+        write!(
+            f,
+            "{} {:02.2}, {:04.4}",
+            match self.month {
+                1 => "JAN",
+                2 => "FEB",
+                3 => "MAR",
+                4 => "APR",
+                5 => "MAY",
+                6 => "JUN",
+                7 => "JUL",
+                8 => "AUG",
+                9 => "SEP",
+                10 => "OCT",
+                11 => "NOV",
+                12 => "DEC",
+                _ => "N/A",
+            },
+            self.day,
+            self.year
+        )
     }
 }
 
