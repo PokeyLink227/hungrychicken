@@ -109,7 +109,7 @@ impl App {
             Message::Start => {
                 self.state = AppState::Running;
                 if self.bot_handle.is_none() {
-                    let (t, h) = Task::abortable(Task::perform(monitor_opentime(), |m| m));
+                    let (t, h) = Task::abortable(Task::perform(monitor_opentime(self.rules_pane.rules.clone()), |m| m));
                     self.bot_handle = Some(h);
                     t
                 } else {

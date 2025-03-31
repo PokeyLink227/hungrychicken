@@ -448,7 +448,7 @@ impl Trip {
     }
 }
 
-pub async fn monitor_opentime() -> Message {
+pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
     let config: LazyCell<BotConfig> = LazyCell::new(|| BotConfig::load().unwrap());
     let re_international: LazyCell<Regex> =
         LazyCell::new(|| Regex::new(r"DUB|EDI|LHR|LGW|CDG|AMS").unwrap());
@@ -470,47 +470,6 @@ pub async fn monitor_opentime() -> Message {
     let mut last_refresh = Instant::now();
     let mut refresh_interval = Duration::from_secs(config.refresh_interval.0 as u64);
 
-    let rules = vec![
-        Rule {
-            name: "trips 1 day".to_owned(),
-            filters: vec![
-                Filter::NumDays(Op::Eq, 1),
-                Filter::DateIs(
-                    Op::Eq,
-                    Date {
-                        year: 2025,
-                        month: 3,
-                        day: 11,
-                    },
-                ),
-            ],
-            action: BotAction::Pickup,
-        },
-        Rule {
-            name: "trips 1 day".to_owned(),
-            filters: vec![
-                Filter::NumDays(Op::Eq, 1),
-                Filter::DateIs(
-                    Op::GtEq,
-                    Date {
-                        year: 2025,
-                        month: 3,
-                        day: 24,
-                    },
-                ),
-                Filter::DateIs(
-                    Op::LtEq,
-                    Date {
-                        year: 2025,
-                        month: 3,
-                        day: 28,
-                    },
-                ),
-            ],
-            action: BotAction::Pickup,
-        },
-    ];
-
     async_std::task::sleep(Duration::from_secs(1)).await;
 
     // click mouse to focus window
@@ -531,7 +490,7 @@ pub async fn monitor_opentime() -> Message {
 
         // take screencap to determine if page has changed
         // TODO: compare to blank image to ensure page has finished loading
-        println!("checking time");
+        //println!("checking time");
         let new_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
             image_update_time = new_update_time;
