@@ -5,15 +5,58 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Mouse, Settings,
 };
-use rand::Rng;
+//use rand::Rng;
 use regex::{Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
 use std::{
     cell::LazyCell,
     fmt::Display,
+    fs::File,
+    io::prelude::*,
     ops::Sub,
     str::FromStr,
     time::{Duration, Instant},
 };
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BotConfig {
+    pub updated_time_pos: (u32, u32),
+    pub refresh_interval: (u32, u32),
+}
+
+impl BotConfig {
+    fn load() -> Result<BotConfig, ()> {
+        let mut file = match File::open("config.json") {
+            Ok(f) => f,
+            Err(_) => {
+                BotConfig::save_default();
+                File::open("config.json")?
+            }
+        };
+
+        let data;
+        file.read_to_string(data)?;
+        serde_json::from_str(data)
+    }
+
+    fn save_default() {
+        let conf = BotConfig {
+            updated_time_pos: (0, 0),
+            refresh_interval: (30, 90),
+        };
+
+        let js: String = match serde_json::to_string(&conf) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+
+        let mut file = match File::create("config.json") {
+            Ok(f) => f,
+            Err(_) => return,
+        };
+        file.write_all(js.as_bytes())?;
+    }
+}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rule {
@@ -406,6 +449,7 @@ impl Trip {
 }
 
 pub async fn monitor_opentime() -> Message {
+    let config: LazyCell<BotConfig> = LazyCell::new(|| BotConfig::load());
     let re_international: LazyCell<Regex> =
         LazyCell::new(|| Regex::new(r"DUB|EDI|LHR|LGW|CDG|AMS").unwrap());
     let re_opentime_trip: LazyCell<Regex> = LazyCell::new(|| {
@@ -424,7 +468,7 @@ pub async fn monitor_opentime() -> Message {
     let loc_opentime = (500, 500);
     //let mut page_text = String::new();
     let mut last_refresh = Instant::now();
-    let mut refresh_interval = Duration::from_secs(90);
+    let mut refresh_interval = Duration::from_secs(config.refresh_interval.0);
 
     let rules = vec![
         Rule {
@@ -582,7 +626,9 @@ pub async fn monitor_opentime() -> Message {
         if last_refresh.elapsed() > refresh_interval {
             refresh_page(&mut enigo, loc_opentime).await;
             last_refresh = Instant::now();
-            refresh_interval = Duration::from_secs(rand::random_range(30..60));
+            refresh_interval = Duration::from_secs(rand::random_range(
+                config.refresh_interval.0..config.refresh_interval.1,
+            ));
             println!("refreshing and waiting {}", refresh_interval.as_secs());
         }
 
