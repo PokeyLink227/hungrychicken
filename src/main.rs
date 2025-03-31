@@ -10,7 +10,8 @@ mod bot;
 mod update;
 
 pub fn main() -> iced::Result {
-    let _ = update::update();
+    let res = update::update();
+    println!("{:?}", res);
     iced::application("Hungry Chicken", App::update, App::view)
         .theme(theme)
         .window_size((650.0, 800.0))
