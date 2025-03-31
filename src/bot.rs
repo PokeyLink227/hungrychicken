@@ -493,7 +493,7 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         .capture_area(
             config.updated_time_pos.0 as i32,
             config.updated_time_pos.1 as i32,
-            240,
+            220,
             9,
         )
         .unwrap();
@@ -557,7 +557,7 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         // TODO: compare to blank image to ensure page has finished loading
         //println!("checking time");
         let new_update_time = screen.capture_area(config.updated_time_pos.0 as i32,
-        config.updated_time_pos.1 as i32, 240, 9).unwrap();
+        config.updated_time_pos.1 as i32, 220, 9).unwrap();
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
             image_update_time = new_update_time;
 
