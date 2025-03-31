@@ -30,6 +30,7 @@ impl BotConfig {
         let mut file = match File::open("config.json") {
             Ok(f) => f,
             Err(_) => {
+                println!("config not found");
                 BotConfig::save_default();
                 File::open("config.json").or(Err(()))?
             }
