@@ -30,13 +30,13 @@ impl BotConfig {
             Ok(f) => f,
             Err(_) => {
                 BotConfig::save_default();
-                File::open("config.json")?
+                File::open("config.json").or(Err(()))?
             }
         };
 
-        let data;
-        file.read_to_string(data)?;
-        serde_json::from_str(data)
+        let mut data = String::new();
+        file.read_to_string(&mut data).or(Err(()))?;
+        serde_json::from_str(&data).or(Err(()))
     }
 
     fn save_default() {
@@ -54,7 +54,7 @@ impl BotConfig {
             Ok(f) => f,
             Err(_) => return,
         };
-        file.write_all(js.as_bytes())?;
+        let _ = file.write_all(js.as_bytes());
     }
 }
 
@@ -449,7 +449,7 @@ impl Trip {
 }
 
 pub async fn monitor_opentime() -> Message {
-    let config: LazyCell<BotConfig> = LazyCell::new(|| BotConfig::load());
+    let config: LazyCell<BotConfig> = LazyCell::new(|| BotConfig::load().unwrap());
     let re_international: LazyCell<Regex> =
         LazyCell::new(|| Regex::new(r"DUB|EDI|LHR|LGW|CDG|AMS").unwrap());
     let re_opentime_trip: LazyCell<Regex> = LazyCell::new(|| {
@@ -468,7 +468,7 @@ pub async fn monitor_opentime() -> Message {
     let loc_opentime = (500, 500);
     //let mut page_text = String::new();
     let mut last_refresh = Instant::now();
-    let mut refresh_interval = Duration::from_secs(config.refresh_interval.0);
+    let mut refresh_interval = Duration::from_secs(config.refresh_interval.0 as u64);
 
     let rules = vec![
         Rule {
