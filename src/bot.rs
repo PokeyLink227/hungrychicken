@@ -281,6 +281,20 @@ pub enum BotAction {
     Pickup = 3,
 }
 
+impl Display for BotAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BotAction::Ignore => "Ignore",
+                BotAction::Pickup => "Pickup",
+                BotAction::Alert => "Alert",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Time {
     pub hours: u8,
@@ -556,8 +570,14 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         // take screencap to determine if page has changed
         // TODO: compare to blank image to ensure page has finished loading
         //println!("checking time");
-        let new_update_time = screen.capture_area(config.updated_time_pos.0 as i32,
-        config.updated_time_pos.1 as i32, 220, 9).unwrap();
+        let new_update_time = screen
+            .capture_area(
+                config.updated_time_pos.0 as i32,
+                config.updated_time_pos.1 as i32,
+                220,
+                9,
+            )
+            .unwrap();
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
             image_update_time = new_update_time;
 

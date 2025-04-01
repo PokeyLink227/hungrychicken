@@ -62,6 +62,7 @@ enum Message {
     EnableRule(usize),
     DisableRule(usize),
     DeleteRule(usize),
+    ChangeRuleAction(usize, BotAction),
     GotWindowId(iced::window::Id),
     NewFilter(usize, FilterType),
     DeleteFilter(usize, usize),
@@ -235,6 +236,9 @@ impl RulesPane {
                 self.enabled.remove(i);
                 self.entries.remove(i);
             }
+            Message::ChangeRuleAction(i, a) => {
+                self.rules[i].action = a;
+            }
             Message::EnableRule(i) => self.enabled[i] = true,
             Message::DisableRule(i) => self.enabled[i] = false,
             Message::NewFilter(i, f) => {
@@ -339,6 +343,7 @@ impl Rule {
             FilterType::IsPrem,
             FilterType::IncludeId,
         ];
+        let actions = [BotAction::Ignore, BotAction::Pickup, BotAction::Alert];
         container(
             column![
                 container(
@@ -348,6 +353,9 @@ impl Rule {
                             Message::EnableRule(index)
                         } else {
                             Message::DisableRule(index)
+                        }),
+                        iced::widget::pick_list(actions, Some(self.action), move |a| {
+                            Message::ChangeRuleAction(index, a)
                         }),
                         button("X").on_press(Message::DeleteRule(index))
                     ]
