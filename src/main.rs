@@ -4,6 +4,7 @@ use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
     Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
+use self_update::cargo_crate_version;
 use std::time::{Duration, Instant};
 
 mod bot;
@@ -12,7 +13,7 @@ mod update;
 pub fn main() -> iced::Result {
     let res = update::update();
     println!("{:?}", res);
-    iced::application("Hungry Chicken", App::update, App::view)
+    iced::application(title, App::update, App::view)
         .theme(theme)
         .window_size((650.0, 800.0))
         .settings(iced::settings::Settings {
@@ -25,6 +26,10 @@ pub fn main() -> iced::Result {
 
 fn theme(_state: &App) -> Theme {
     iced::Theme::TokyoNightStorm
+}
+
+fn title(_state: &App) -> String {
+    format!("Hungry Chicken {}", cargo_crate_version!())
 }
 
 fn bordered_box(theme: &Theme) -> container::Style {
