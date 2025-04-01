@@ -540,7 +540,7 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         // refresh page
         if last_refresh.elapsed() > refresh_interval {
             last_refresh = Instant::now();
-            refresh_interval = Duration::from_secs(rand::random_range(90..180));
+            refresh_interval = Duration::from_secs(rand::random_range(config.refresh_interval.0..config.refresh_interval.1) as u64);
             println!("refreshing and waiting {}", refresh_interval.as_secs());
             // refresh page
             let _ = enigo.key(Key::Control, Press);
