@@ -1,5 +1,6 @@
-use crate::bot::bot_thread;
-use crate::bot::{BotAction, Date, Field, Filter, FilterType, Op, Rule, Time};
+use crate::bot::{
+    bot_thread, BotAction, BotMessage, Date, Field, Filter, FilterType, Op, Rule, Time,
+};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
@@ -67,6 +68,7 @@ enum MonitorMessage {
 
 #[derive(Debug, Clone)]
 enum Message {
+    Bot(BotMessage),
     Tick,
     Start,
     Stop,
@@ -101,8 +103,8 @@ struct App {
     control_pane: ControlPane,
     rules_pane: RulesPane,
     bot_handle: Option<iced::task::Handle>,
-    rx: Receiver<Message>,
-    tx: Sender<Message>,
+    rx: Receiver<BotMessage>,
+    tx: Sender<BotMessage>,
 }
 
 impl App {
@@ -139,19 +141,21 @@ impl App {
         match message {
             Message::Tick => {
                 if let Some(m) = self.rx.try_recv().ok() {
-                    Task::done(m)
+                    Task::done(Message::Bot(m))
                 } else {
                     Task::none()
                 }
             }
             Message::Start => {
                 self.state = AppState::Running;
-                self.tx.send(Message::Start).unwrap();
+                self.tx
+                    .send(BotMessage::Start(self.rules_pane.rules.clone()))
+                    .unwrap();
                 Task::none()
             }
             Message::Stop => {
                 self.state = AppState::Stopped;
-                self.tx.send(Message::Stop).unwrap();
+                self.tx.send(BotMessage::Stop).unwrap();
                 iced::window::gain_focus(self.window_id.unwrap())
             }
             Message::GotWindowId(i) => {

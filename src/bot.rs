@@ -23,6 +23,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[derive(Debug, Clone)]
+pub enum BotMessage {
+    Start(Vec<Rule>),
+    Stop,
+    TripFound,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BotConfig {
     pub updated_time_pos: (u32, u32),
@@ -493,7 +500,7 @@ impl Trip {
     }
 }
 
-pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
+pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
     let mut rules: Vec<Rule> = Vec::new();
     let mut state = AppState::Stopped;
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
@@ -547,10 +554,11 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
     'main: loop {
         if let Ok(msg) = rx.try_recv() {
             match msg {
-                Message::Start => {
+                BotMessage::Start(r) => {
                     state = AppState::Running;
+                    rules = r;
                 }
-                Message::Stop => {
+                BotMessage::Stop => {
                     state = AppState::Stopped;
                     sink.pause();
                 }
@@ -660,13 +668,13 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
                 if t.0 == BotAction::Pickup {
                     add_trip_from_opentime(&mut enigo, t.1);
                     state = AppState::Stopped;
-                    tx.send(Message::Stop).unwrap();
+                    tx.send(BotMessage::Stop).unwrap();
                     continue;
                 } else if t.0 == BotAction::Alert {
                     // alert user
                     sink.play();
                     state = AppState::Alerting;
-                    tx.send(Message::TripFound).unwrap();
+                    tx.send(BotMessage::TripFound).unwrap();
                 }
             }
         }
@@ -680,7 +688,7 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
 
             if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
                 state = AppState::Stopped;
-                tx.send(Message::Stop).unwrap();
+                tx.send(BotMessage::Stop).unwrap();
                 continue 'main;
             }
             thread::sleep(Duration::from_millis(50));
