@@ -770,7 +770,7 @@ async fn hit_button(enigo: &mut Enigo, button_name: &str) {
     // type button name
     println!("hitting trip id");
     let _ = enigo.text(button_name);
-    async_std::task::sleep(Duration::from_millis(17)).await;
+    async_std::task::sleep(Duration::from_millis(47)).await;
 
     // navigate to button
     println!("hitting shoft+tab");
