@@ -70,7 +70,7 @@ enum Message {
     Tick,
     Start,
     Stop,
-    Pause,
+    TripFound,
     NewRule,
     EnableRule(usize),
     DisableRule(usize),
@@ -89,6 +89,7 @@ enum AppState {
     #[default]
     Stopped,
     Running,
+    Alerting,
 }
 
 #[derive(Debug)]
@@ -534,8 +535,8 @@ impl LogPane {
             Message::Stop => {
                 self.log.push_str("Bot Stopped\n");
             }
-            Message::Pause => {
-                self.log.push_str("Paused\n");
+            Message::TripFound => {
+                self.log.push_str("Trip Found\n");
             }
             _ => {} /*
                     m => {

@@ -547,13 +547,18 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
     'main: loop {
         if let Ok(msg) = rx.try_recv() {
             match msg {
-                Message::Start => state = AppState::Running,
-                Message::Stop => state = AppState::Stopped,
-                _ => continue 'main, // ignore this message and start reciving again
+                Message::Start => {
+                    state = AppState::Running;
+                }
+                Message::Stop => {
+                    state = AppState::Stopped;
+                    sink.pause();
+                }
+                _ => {}
             }
         }
 
-        if state == AppState::Stopped {
+        if state != AppState::Running {
             thread::sleep(Duration::from_millis(100));
             continue 'main;
         }
@@ -659,7 +664,9 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
                     continue;
                 } else if t.0 == BotAction::Alert {
                     // alert user
-                    //sink.play();
+                    sink.play();
+                    state = AppState::Alerting;
+                    tx.send(Message::TripFound).unwrap();
                 }
             }
         }
