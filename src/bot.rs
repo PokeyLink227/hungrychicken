@@ -545,11 +545,17 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
 
     println!("bot entering main loop");
     'main: loop {
-        if state == AppState::Paused {
-            match rx.recv().unwrap() {
+        if let Ok(msg) = rx.try_recv() {
+            match msg {
                 Message::Start => state = AppState::Running,
+                Message::Pause => state = AppState::Paused,
                 _ => continue 'main, // ignore this message and start reciving again
             }
+        }
+
+        if state == AppState::Paused {
+            thread::sleep(Duration::from_millis(100));
+            continue 'main;
         }
         // assume the browser window is still focused
 
@@ -586,7 +592,7 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
 
         // take screencap to determine if page has changed
         // TODO: compare to blank image to ensure page has finished loading
-        //println!("checking time");
+        println!("checking time");
         let new_update_time = screen
             .capture_area(
                 config.updated_time_pos.0 as i32,
