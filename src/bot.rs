@@ -543,7 +543,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
     let _ = enigo.button(Button::Left, Click);
     thread::sleep(Duration::from_secs(1));
 
-    let load_icon = screen
+    let mut load_icon = screen
         .capture_area(
             config.refresh[0] as i32,
             config.refresh[1] as i32,
@@ -559,6 +559,17 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 BotMessage::Start(r) => {
                     state = AppState::Running;
                     rules = r;
+                    let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
+                    let _ = enigo.button(Button::Left, Click);
+                    thread::sleep(Duration::from_secs(1));
+                    load_icon = screen
+                        .capture_area(
+                            config.refresh[0] as i32,
+                            config.refresh[1] as i32,
+                            config.refresh[2],
+                            config.refresh[3],
+                        )
+                        .unwrap();
                 }
                 BotMessage::Stop => {
                     state = AppState::Stopped;
@@ -585,6 +596,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             let _ = enigo.key(Key::Control, Press);
             let _ = enigo.key(Key::Unicode('r'), Click);
             let _ = enigo.key(Key::Control, Release);
+            thread::sleep(Duration::from_millis(500));
 
             // wait for page to finish loading
             while screen
@@ -690,6 +702,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             // check if Escape key is pressed
 
             if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
+                println!("stopping");
                 state = AppState::Stopped;
                 tx.send(BotMessage::Stop).unwrap();
                 continue 'main;
