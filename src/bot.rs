@@ -1,4 +1,4 @@
-use crate::Message;
+use crate::{AppState, Message};
 use clipboard_win::{formats, get_clipboard, set_clipboard};
 use enigo::{
     Button, Coordinate,
@@ -7,7 +7,12 @@ use enigo::{
 };
 //use rand::Rng;
 use regex::{Regex, RegexBuilder};
+use rodio::{source::Source, Decoder, OutputStream, Sink};
 use serde::{Deserialize, Serialize};
+use std::io::BufReader;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
+use std::thread;
 use std::{
     cell::LazyCell,
     fmt::Display,
@@ -488,21 +493,25 @@ impl Trip {
     }
 }
 
-pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
-    let config: LazyCell<BotConfig> = LazyCell::new(|| BotConfig::load().unwrap());
-    let re_international: LazyCell<Regex> =
-        LazyCell::new(|| Regex::new(r"DUB|EDI|LHR|LGW|CDG|AMS").unwrap());
-    let re_opentime_trip: LazyCell<Regex> = LazyCell::new(|| {
-        RegexBuilder::new(r"^(?P<tripid>\w+)\s+(?P<date>\w+)\s+(?P<days>\d+)\s+(?P<report>\S+)\s+(?P<depart>\S+)\s+(?P<arrive>\S+)\s+(?P<bulk>\d+)\s+(?P<credit>\d+)\s+(?P<layovers>(?:\S{3}\s*)*)\s*(?P<prem>X?)\s*$")
+pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
+    let mut rules: Vec<Rule> = Vec::new();
+    let mut state = AppState::Paused;
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let file = BufReader::new(File::open("alert_sound.wav").unwrap());
+    let source = Decoder::new(file).unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+    sink.append(source.repeat_infinite());
+    sink.pause();
+
+    let config: BotConfig = BotConfig::load().unwrap();
+    let re_international: Regex = Regex::new(r"DUB|EDI|LHR|LGW|CDG|AMS").unwrap();
+    let re_opentime_trip: Regex = RegexBuilder::new(r"^(?P<tripid>\w+)\s+(?P<date>\w+)\s+(?P<days>\d+)\s+(?P<report>\S+)\s+(?P<depart>\S+)\s+(?P<arrive>\S+)\s+(?P<bulk>\d+)\s+(?P<credit>\d+)\s+(?P<layovers>(?:\S{3}\s*)*)\s*(?P<prem>X?)\s*$")
             .multi_line(true)
             .build()
             .unwrap()
-    });
+    ;
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
     let screen = screenshots::Screen::all().unwrap()[0];
-
-    //let mut image_update_time = screen.capture_area(307, 368, 240, 9).unwrap();
-    //let mut image_update_time = screen.capture_area(1674, 152, 240, 9).unwrap();
     let mut image_update_time = screen
         .capture_area(
             config.updated_time_pos.0 as i32,
@@ -518,12 +527,12 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
     let mut last_refresh = Instant::now();
     let mut refresh_interval = Duration::from_secs(config.refresh_interval.0 as u64);
 
-    async_std::task::sleep(Duration::from_secs(1)).await;
+    thread::sleep(Duration::from_secs(1));
 
     // click mouse to focus window
     let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
     let _ = enigo.button(Button::Left, Click);
-    async_std::task::sleep(Duration::from_secs(1)).await;
+    thread::sleep(Duration::from_secs(1));
 
     let load_icon = screen
         .capture_area(
@@ -534,7 +543,14 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         )
         .unwrap();
 
-    loop {
+    println!("bot entering main loop");
+    'main: loop {
+        if state == AppState::Paused {
+            match rx.recv().unwrap() {
+                Message::Start => state = AppState::Running,
+                _ => continue 'main, // ignore this message and start reciving again
+            }
+        }
         // assume the browser window is still focused
 
         // refresh page
@@ -560,7 +576,7 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
                 .unwrap()
                 != load_icon
             {
-                async_std::task::sleep(Duration::from_millis(10)).await;
+                thread::sleep(Duration::from_millis(10));
             }
 
             // click mouse in proper area
@@ -589,7 +605,7 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
             let _ = enigo.key(Key::Unicode('c'), Click);
             let _ = enigo.key(Key::Control, Release);
             //let _ = enigo.key(Key::Tab, Click);
-            async_std::task::sleep(Duration::from_millis(500)).await;
+            thread::sleep(Duration::from_millis(500));
 
             // process text
             let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
@@ -626,28 +642,23 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
                         )
                     })
                     .collect();
-            /*
-            let filtered_trips: Vec<(BotAction, &str)> = trips
-                .iter()
-                .filter(|t| {
-                    rule.filters
-                        .iter()
-                        .map(|f| f.eval(t))
-                        .fold(true, |a, b| a & b)
-                })
-                .collect();
-                */
 
             // alert if any match
             for t in &filtered_trips {
                 println!("{:?} {}", t.0, t.1);
                 if t.0 == BotAction::Pickup {
-                    add_trip_from_opentime(&mut enigo, t.1).await;
-                    return Message::Pause;
+                    add_trip_from_opentime(&mut enigo, t.1);
+                    state = AppState::Paused;
+                    tx.send(Message::Pause).unwrap();
+                    continue;
+                } else if t.0 == BotAction::Alert {
+                    // alert user
+                    //sink.play();
                 }
             }
         }
 
+        println!("sleeping");
         // sleep for a random ammount of time
         let milis_to_sleep = rand::random_range(800..2000);
         let mut m = 0;
@@ -655,122 +666,45 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
             // check if Escape key is pressed
 
             if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
-                return Message::Pause;
+                state = AppState::Paused;
+                println!("sending stop");
+                tx.send(Message::Stop).unwrap();
+                continue 'main;
             }
-            async_std::task::sleep(Duration::from_millis(50)).await;
+            thread::sleep(Duration::from_millis(50));
             m += 50;
         }
     }
-
-    /*
-    loop {
-        // click mouse to focus window
-        let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
-        let _ = enigo.button(Button::Left, Click);
-
-        // refresh page
-        if last_refresh.elapsed() > refresh_interval {
-            refresh_page(&mut enigo, loc_opentime).await;
-            last_refresh = Instant::now();
-            refresh_interval = Duration::from_secs(rand::random_range(
-                config.refresh_interval.0..config.refresh_interval.1,
-            ));
-            println!("refreshing and waiting {}", refresh_interval.as_secs());
-        }
-
-        // copy text
-        let _ = enigo.key(Key::Control, Press);
-        let _ = enigo.key(Key::Unicode('a'), Click);
-        let _ = enigo.key(Key::Unicode('c'), Click);
-        let _ = enigo.key(Key::Control, Release);
-        async_std::task::sleep(Duration::from_millis(500)).await;
-
-        // process text
-        let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
-        let trips: Vec<Trip> = re_opentime_trip
-            .captures_iter(&result)
-            .map(|c| c.extract())
-            .map(
-                |(_, [id, date, days, rep, dep, arr, blk, crd, lay, prem])| Trip {
-                    id: id.to_owned(),
-                    date: date.parse().unwrap(),
-                    days: days.parse().unwrap(),
-                    report: rep.parse().unwrap(),
-                    depart: dep.parse().unwrap(),
-                    arrive: arr.parse().unwrap(),
-                    block: Time::from_num_str(blk).unwrap(),
-                    credit: Time::from_num_str(crd).unwrap(),
-                    layovers: lay.split_whitespace().map(|s| s.to_owned()).collect(),
-                    premium: !prem.is_empty(),
-                },
-            )
-            .collect();
-
-        // apply filters
-        let filtered_trips: Vec<&Trip> = trips
-            .iter()
-            .filter(|t| {
-                rule.filters
-                    .iter()
-                    .map(|f| f.eval(t))
-                    .fold(true, |a, b| a & b)
-            })
-            .collect();
-
-        // alert if any match
-        filtered_trips.iter().for_each(|t| println!("{}", t.id));
-
-        // TEMP: add and submit a trip
-        //add_trip_from_opentime(&mut enigo, "j2B15").await;
-        //break;
-
-        // sleep for a random ammount of time
-        let milis_to_sleep = rand::random_range(800..2000);
-        let mut m = 0;
-        while m < milis_to_sleep {
-            // check if Escape key is pressed
-
-            if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
-                return Message::Pause;
-            }
-            async_std::task::sleep(Duration::from_millis(50)).await;
-            m += 50;
-        }
-    }
-    */
-
-    //std::thread::sleep(Duration::from_secs(3)); // cant abort if this is used and there is no async sleep after it
-    //Message::Pause
 }
 
-async fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) {
-    hit_button(enigo, trip_id).await;
-    hit_button(enigo, "it r").await;
+fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) {
+    hit_button(enigo, trip_id);
+    hit_button(enigo, "it r");
 }
 
-async fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
-    hit_button(enigo, "submit").await;
-    async_std::task::sleep(Duration::from_millis(1500)).await; // this delay needs to wait until the page has loaded
-    hit_button(enigo, "add").await;
-    async_std::task::sleep(Duration::from_millis(1500)).await; // this delay needs to wait until the page has loaded
-    hit_button(enigo, trip_id).await;
+fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
+    hit_button(enigo, "submit");
+    thread::sleep(Duration::from_millis(1500)); // this delay needs to wait until the page has loaded
+    hit_button(enigo, "add");
+    thread::sleep(Duration::from_millis(1500)); // this delay needs to wait until the page has loaded
+    hit_button(enigo, trip_id);
     return;
-    hit_button(enigo, "it r").await;
+    hit_button(enigo, "it r");
 }
 
 // these durations should be randomized if possible, should total to ~1 sec
-async fn hit_button(enigo: &mut Enigo, button_name: &str) {
+fn hit_button(enigo: &mut Enigo, button_name: &str) {
     println!("hitting [{}] button", button_name);
 
     // open quick find bar
     println!("hitting /");
     let _ = enigo.key(Key::Unicode('/'), Click);
-    async_std::task::sleep(Duration::from_millis(28)).await;
+    thread::sleep(Duration::from_millis(28));
 
     // type button name
     println!("hitting trip id");
     let _ = enigo.text(button_name);
-    async_std::task::sleep(Duration::from_millis(200)).await;
+    thread::sleep(Duration::from_millis(200));
 
     // navigate to button
     println!("hitting shoft+tab");
@@ -778,10 +712,10 @@ async fn hit_button(enigo: &mut Enigo, button_name: &str) {
     let _ = enigo.key(Key::Shift, Press);
     let _ = enigo.key(Key::Tab, Click);
     let _ = enigo.key(Key::Shift, Release);
-    async_std::task::sleep(Duration::from_millis(75)).await;
+    thread::sleep(Duration::from_millis(75));
 
     // click button
     println!("hitting enter");
     let _ = enigo.key(Key::Return, Click);
-    async_std::task::sleep(Duration::from_millis(5)).await;
+    thread::sleep(Duration::from_millis(5));
 }

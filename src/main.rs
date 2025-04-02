@@ -1,18 +1,25 @@
-use crate::bot::{monitor_opentime, BotAction, Date, Field, Filter, FilterType, Op, Rule, Time};
+use crate::bot::bot_thread;
+use crate::bot::{BotAction, Date, Field, Filter, FilterType, Op, Rule, Time};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
 use iced::{
     keyboard::{key, on_key_press, Key, Modifiers},
     Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
 use self_update::cargo_crate_version;
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
+use std::thread;
 use std::time::{Duration, Instant};
 
 mod bot;
 mod update;
 
 pub fn main() -> iced::Result {
+    // handle updates
     let res = update::update();
     println!("{:?}", res);
+
     iced::application(title, App::update, App::view)
         .theme(theme)
         .window_size((650.0, 800.0))
@@ -60,6 +67,7 @@ enum MonitorMessage {
 
 #[derive(Debug, Clone)]
 enum Message {
+    Tick,
     Start,
     Stop,
     Pause,
@@ -84,7 +92,7 @@ enum AppState {
     Paused,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct App {
     window_id: Option<iced::window::Id>,
     state: AppState,
@@ -93,12 +101,28 @@ struct App {
     control_pane: ControlPane,
     rules_pane: RulesPane,
     bot_handle: Option<iced::task::Handle>,
+    rx: Receiver<Message>,
+    tx: Sender<Message>,
 }
 
 impl App {
     fn init() -> (App, Task<Message>) {
+        let (mb_tx, mb_rx) = mpsc::channel();
+        let (bm_tx, bm_rx) = mpsc::channel();
+        let thread_handle = thread::spawn(move || bot_thread(mb_rx, bm_tx));
+
         (
-            App::default(),
+            App {
+                window_id: None,
+                state: AppState::default(),
+                log: LogPane::default(),
+                info: InfoPane::default(),
+                control_pane: ControlPane::default(),
+                rules_pane: RulesPane::default(),
+                bot_handle: None,
+                rx: bm_rx,
+                tx: mb_tx,
+            },
             Task::map(iced::window::get_latest(), |m| {
                 Message::GotWindowId(m.unwrap())
             }),
@@ -113,35 +137,27 @@ impl App {
         //self.info.update();
 
         match message {
-            Message::Start => {
-                self.state = AppState::Running;
-                if self.bot_handle.is_none() {
-                    let (t, h) = Task::abortable(Task::perform(
-                        monitor_opentime(self.rules_pane.rules.clone()),
-                        |m| m,
-                    ));
-                    self.bot_handle = Some(h);
-                    t
+            Message::Tick => {
+                if let Some(m) = self.rx.try_recv().ok() {
+                    Task::done(m)
                 } else {
                     Task::none()
                 }
             }
+            Message::Start => {
+                self.state = AppState::Running;
+                self.tx.send(Message::Start).unwrap();
+                Task::none()
+            }
             Message::Stop => {
                 self.state = AppState::Stopped;
-                if let Some(h) = &self.bot_handle {
-                    h.abort();
-                    self.bot_handle = None;
-                }
+                self.tx.send(Message::Stop).unwrap();
                 Task::none()
             }
             Message::Pause => {
+                self.tx.send(Message::Pause).unwrap();
                 self.state = AppState::Paused;
-                if let Some(h) = &self.bot_handle {
-                    h.abort();
-                    self.bot_handle = None;
-                }
                 iced::window::gain_focus(self.window_id.unwrap())
-                //Task::none()
             }
             Message::GotWindowId(i) => {
                 self.window_id = Some(i);
@@ -163,10 +179,7 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        on_key_press(|key, mods| match key {
-            Key::Named(key::Named::Escape) => Some(Message::Stop),
-            _ => None,
-        })
+        iced::time::every(Duration::from_millis(10)).map(|_| Message::Tick)
     }
 }
 
@@ -538,9 +551,11 @@ impl LogPane {
             Message::Pause => {
                 self.log.push_str("Paused\n");
             }
-            m => {
-                self.log.push_str(&format!("{:?}\n", m));
-            }
+            _ => {} /*
+                    m => {
+                        self.log.push_str(&format!("{:?}\n", m));
+                    }
+                    */
         }
     }
 
