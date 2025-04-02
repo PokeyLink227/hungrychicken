@@ -96,7 +96,7 @@ impl Rule {
         if self.eval(trip) {
             self.action
         } else {
-            BotAction::Ignore
+            BotAction::Nothing
         }
     }
 }
@@ -288,9 +288,10 @@ impl Display for FilterType {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum BotAction {
-    Ignore = 1,
+    Nothing = 1,
     Alert = 2,
     Pickup = 3,
+    Ignore = 4,
 }
 
 impl Display for BotAction {
@@ -299,9 +300,10 @@ impl Display for BotAction {
             f,
             "{}",
             match self {
-                BotAction::Ignore => "Ignore",
-                BotAction::Pickup => "Pickup",
+                BotAction::Nothing => "Do Nothing",
                 BotAction::Alert => "Alert",
+                BotAction::Pickup => "Pickup",
+                BotAction::Ignore => "Ignore",
             }
         )
     }
@@ -654,7 +656,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                     .map(|t| {
                         (
                             rules.iter().map(|r| r.get_action(t)).fold(
-                                BotAction::Ignore,
+                                BotAction::Nothing,
                                 |a, b| if b as u8 > a as u8 { b } else { a },
                             ),
                             t.id.as_str(),
@@ -667,6 +669,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 println!("{:?} {}", t.0, t.1);
                 if t.0 == BotAction::Pickup {
                     add_trip_from_opentime(&mut enigo, t.1);
+                    sink.play();
                     state = AppState::Stopped;
                     tx.send(BotMessage::Stop).unwrap();
                     continue;
