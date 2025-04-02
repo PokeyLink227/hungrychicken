@@ -495,7 +495,7 @@ impl Trip {
 
 pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
     let mut rules: Vec<Rule> = Vec::new();
-    let mut state = AppState::Paused;
+    let mut state = AppState::Stopped;
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let file = BufReader::new(File::open("alert_sound.wav").unwrap());
     let source = Decoder::new(file).unwrap();
@@ -548,12 +548,12 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
         if let Ok(msg) = rx.try_recv() {
             match msg {
                 Message::Start => state = AppState::Running,
-                Message::Pause => state = AppState::Paused,
+                Message::Stop => state = AppState::Stopped,
                 _ => continue 'main, // ignore this message and start reciving again
             }
         }
 
-        if state == AppState::Paused {
+        if state == AppState::Stopped {
             thread::sleep(Duration::from_millis(100));
             continue 'main;
         }
@@ -654,8 +654,8 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
                 println!("{:?} {}", t.0, t.1);
                 if t.0 == BotAction::Pickup {
                     add_trip_from_opentime(&mut enigo, t.1);
-                    state = AppState::Paused;
-                    tx.send(Message::Pause).unwrap();
+                    state = AppState::Stopped;
+                    tx.send(Message::Stop).unwrap();
                     continue;
                 } else if t.0 == BotAction::Alert {
                     // alert user
@@ -672,8 +672,7 @@ pub fn bot_thread(rx: Receiver<Message>, tx: Sender<Message>) {
             // check if Escape key is pressed
 
             if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
-                state = AppState::Paused;
-                println!("sending stop");
+                state = AppState::Stopped;
                 tx.send(Message::Stop).unwrap();
                 continue 'main;
             }
@@ -694,7 +693,7 @@ fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
     hit_button(enigo, "add");
     thread::sleep(Duration::from_millis(1500)); // this delay needs to wait until the page has loaded
     hit_button(enigo, trip_id);
-    return;
+    thread::sleep(Duration::from_millis(50));
     hit_button(enigo, "it r");
 }
 

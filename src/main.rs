@@ -89,7 +89,6 @@ enum AppState {
     #[default]
     Stopped,
     Running,
-    Paused,
 }
 
 #[derive(Debug)]
@@ -152,11 +151,6 @@ impl App {
             Message::Stop => {
                 self.state = AppState::Stopped;
                 self.tx.send(Message::Stop).unwrap();
-                Task::none()
-            }
-            Message::Pause => {
-                self.tx.send(Message::Pause).unwrap();
-                self.state = AppState::Paused;
                 iced::window::gain_focus(self.window_id.unwrap())
             }
             Message::GotWindowId(i) => {
@@ -197,9 +191,6 @@ impl ControlPane {
             Message::Stop => {
                 self.state = AppState::Stopped;
             }
-            Message::Pause => {
-                self.state = AppState::Paused;
-            }
             _ => {}
         }
     }
@@ -216,11 +207,6 @@ impl ControlPane {
                 button("Stop")
             } else {
                 button("Stop").on_press(Message::Stop)
-            },
-            if self.state == AppState::Paused {
-                button("Pause")
-            } else {
-                button("Pause").on_press(Message::Pause)
             },
         ])
         .style(bordered_box)
