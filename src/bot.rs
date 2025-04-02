@@ -540,13 +540,14 @@ pub async fn monitor_opentime(rules: Vec<Rule>) -> Message {
         // refresh page
         if last_refresh.elapsed() > refresh_interval {
             last_refresh = Instant::now();
-            refresh_interval = Duration::from_secs(rand::random_range(config.refresh_interval.0..config.refresh_interval.1) as u64);
+            refresh_interval = Duration::from_secs(rand::random_range(
+                config.refresh_interval.0..config.refresh_interval.1,
+            ) as u64);
             println!("refreshing and waiting {}", refresh_interval.as_secs());
             // refresh page
             let _ = enigo.key(Key::Control, Press);
             let _ = enigo.key(Key::Unicode('r'), Click);
             let _ = enigo.key(Key::Control, Release);
-            async_std::task::sleep(Duration::from_millis(500)).await;
 
             // wait for page to finish loading
             while screen
@@ -753,6 +754,7 @@ async fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
     hit_button(enigo, "add").await;
     async_std::task::sleep(Duration::from_millis(1500)).await; // this delay needs to wait until the page has loaded
     hit_button(enigo, trip_id).await;
+    return;
     hit_button(enigo, "it r").await;
 }
 
