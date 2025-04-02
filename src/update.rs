@@ -10,5 +10,8 @@ pub fn update() -> Result<(), Box<dyn std::error::Error>> {
         .build()?
         .update()?;
     println!("Update status: `{}`!", status.version());
+    if status.updated() {
+        std::process::exit(0);
+    }
     Ok(())
 }
