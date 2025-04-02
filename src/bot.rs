@@ -778,7 +778,7 @@ async fn hit_button(enigo: &mut Enigo, button_name: &str) {
     let _ = enigo.key(Key::Shift, Press);
     let _ = enigo.key(Key::Tab, Click);
     let _ = enigo.key(Key::Shift, Release);
-    async_std::task::sleep(Duration::from_millis(3100)).await;
+    async_std::task::sleep(Duration::from_millis(75)).await;
 
     // click button
     println!("hitting enter");
