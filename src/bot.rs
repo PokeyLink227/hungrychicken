@@ -597,7 +597,6 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             let _ = enigo.key(Key::Unicode('r'), Click);
             let _ = enigo.key(Key::Control, Release);
             thread::sleep(Duration::from_millis(500));
-            let _ = enigo.button(Button::Left, Click);
 
             // wait for page to finish loading
             while screen
@@ -639,7 +638,9 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             let _ = enigo.key(Key::Unicode('c'), Click);
             let _ = enigo.key(Key::Control, Release);
             //let _ = enigo.key(Key::Tab, Click);
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(100));
+            let _ = enigo.button(Button::Left, Click);
+            thread::sleep(Duration::from_millis(100));
 
             // process text
             let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
