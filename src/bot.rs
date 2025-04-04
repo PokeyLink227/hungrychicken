@@ -597,6 +597,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             let _ = enigo.key(Key::Unicode('r'), Click);
             let _ = enigo.key(Key::Control, Release);
             thread::sleep(Duration::from_millis(500));
+            let _ = enigo.button(Button::Left, Click);
 
             // wait for page to finish loading
             while screen
