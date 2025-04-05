@@ -596,7 +596,6 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             let _ = enigo.key(Key::Control, Press);
             let _ = enigo.key(Key::Unicode('r'), Click);
             let _ = enigo.key(Key::Control, Release);
-            thread::sleep(Duration::from_millis(500));
 
             // wait for page to finish loading
             while screen
@@ -698,7 +697,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
 
         println!("sleeping");
         // sleep for a random ammount of time
-        let milis_to_sleep = rand::random_range(800..2000);
+        let milis_to_sleep = rand::random_range(25..75);
         let mut m = 0;
         while m < milis_to_sleep {
             // check if Escape key is pressed
