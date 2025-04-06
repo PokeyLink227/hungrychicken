@@ -1,5 +1,5 @@
 use crate::{AppState, Message};
-use clipboard_win::{formats, get_clipboard, set_clipboard};
+use clipboard_win::{formats, get_clipboard_string, set_clipboard};
 use enigo::{
     Button, Coordinate,
     Direction::{Click, Press, Release},
@@ -521,7 +521,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
     ;
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
     let screen = screenshots::Screen::all().unwrap()[0];
-    let mut image_update_time = screen
+    let mut image_update_time: screenshots::image::RgbaImage = screen
         .capture_area(
             config.updated_time_pos.0 as i32,
             config.updated_time_pos.1 as i32,
@@ -529,6 +529,12 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             9,
         )
         .unwrap();
+    let mut new_update_time: screenshots::image::RgbaImage;
+    let blank = screenshots::image::RgbaImage::from_pixel(
+        220,
+        9,
+        screenshots::image::Rgba([255, 255, 255, 255]),
+    );
     //image_update_time.save(format!("time.png")).unwrap();
 
     let loc_opentime = (500, 500);
@@ -608,18 +614,20 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 .unwrap()
                 != load_icon
             {
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(Duration::from_millis(30));
             }
 
             // click mouse in proper area
             let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
             let _ = enigo.button(Button::Left, Click);
+            thread::sleep(Duration::from_millis(200));
         }
 
         // take screencap to determine if page has changed
         // TODO: compare to blank image to ensure page has finished loading
-        println!("checking time");
-        let new_update_time = screen
+
+        //println!("checking time");
+        new_update_time = screen
             .capture_area(
                 config.updated_time_pos.0 as i32,
                 config.updated_time_pos.1 as i32,
@@ -627,7 +635,22 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 9,
             )
             .unwrap();
+        while new_update_time.pixels().eq(blank.pixels()) {
+            new_update_time = screen
+                .capture_area(
+                    config.updated_time_pos.0 as i32,
+                    config.updated_time_pos.1 as i32,
+                    220,
+                    9,
+                )
+                .unwrap();
+            thread::sleep(Duration::from_millis(50));
+        }
+
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
+            image_update_time.save("old.png");
+            new_update_time.save("new.png");
+
             image_update_time = new_update_time;
 
             println!("Copying screen");
@@ -637,12 +660,12 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             let _ = enigo.key(Key::Unicode('c'), Click);
             let _ = enigo.key(Key::Control, Release);
             //let _ = enigo.key(Key::Tab, Click);
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(150));
             let _ = enigo.button(Button::Left, Click);
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(150));
 
             // process text
-            let result: String = get_clipboard(formats::Unicode).expect("To set clipboard");
+            let result: String = get_clipboard_string().expect("To get clipboard");
             let trips: Vec<Trip> = re_opentime_trip
                 .captures_iter(&result)
                 .map(|c| c.extract())
@@ -695,9 +718,9 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             }
         }
 
-        println!("sleeping");
+        //println!("sleeping");
         // sleep for a random ammount of time
-        let milis_to_sleep = rand::random_range(25..75);
+        let milis_to_sleep = rand::random_range(150..250);
         let mut m = 0;
         while m < milis_to_sleep {
             // check if Escape key is pressed
