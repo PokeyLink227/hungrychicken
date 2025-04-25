@@ -646,6 +646,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 .unwrap();
             thread::sleep(Duration::from_millis(50));
         }
+        thread::sleep(Duration::from_millis(500));
 
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
             image_update_time.save("old.png");
