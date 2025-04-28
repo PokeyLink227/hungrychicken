@@ -618,6 +618,27 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             }
             thread::sleep(Duration::from_millis(300));
 
+            new_update_time = screen
+                .capture_area(
+                    config.updated_time_pos.0,
+                    config.updated_time_pos.1,
+                    config.updated_time_pos.2,
+                    config.updated_time_pos.3,
+                )
+                .unwrap();
+            while new_update_time.pixels().eq(blank.pixels()) {
+                new_update_time = screen
+                    .capture_area(
+                        config.updated_time_pos.0,
+                        config.updated_time_pos.1,
+                        config.updated_time_pos.2,
+                        config.updated_time_pos.3,
+                    )
+                    .unwrap();
+                thread::sleep(Duration::from_millis(50));
+            }
+            thread::sleep(Duration::from_millis(500));
+
             // click mouse in proper area
             let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
             let _ = enigo.button(Button::Left, Click);
@@ -636,18 +657,6 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 config.updated_time_pos.3,
             )
             .unwrap();
-        while new_update_time.pixels().eq(blank.pixels()) {
-            new_update_time = screen
-                .capture_area(
-                    config.updated_time_pos.0,
-                    config.updated_time_pos.1,
-                    config.updated_time_pos.2,
-                    config.updated_time_pos.3,
-                )
-                .unwrap();
-            thread::sleep(Duration::from_millis(50));
-        }
-        thread::sleep(Duration::from_millis(500));
 
         if !new_update_time.pixels().eq(image_update_time.pixels()) {
             image_update_time.save("old.png");
