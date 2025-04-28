@@ -32,7 +32,7 @@ pub enum BotMessage {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BotConfig {
-    pub updated_time_pos: (u32, u32),
+    pub updated_time_pos: (i32, i32, u32, u32),
     pub refresh_interval: (u32, u32),
     pub refresh: [u32; 4],
 }
@@ -55,9 +55,9 @@ impl BotConfig {
 
     fn save_default() {
         let conf = BotConfig {
-            updated_time_pos: (0, 0),
-            refresh_interval: (30, 90),
-            refresh: [50, 50, 20, 20],
+            updated_time_pos: (517, 199, 150, 20),
+            refresh_interval: (10, 30),
+            refresh: [87, 62, 20, 20],
         };
 
         let js: String = match serde_json::to_string(&conf) {
@@ -523,16 +523,16 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
     let screen = screenshots::Screen::all().unwrap()[0];
     let mut image_update_time: screenshots::image::RgbaImage = screen
         .capture_area(
-            config.updated_time_pos.0 as i32,
-            config.updated_time_pos.1 as i32,
-            220,
-            9,
+            config.updated_time_pos.0,
+            config.updated_time_pos.1,
+            config.updated_time_pos.2,
+            config.updated_time_pos.3,
         )
         .unwrap();
     let mut new_update_time: screenshots::image::RgbaImage;
     let blank = screenshots::image::RgbaImage::from_pixel(
-        220,
-        9,
+        config.updated_time_pos.2,
+        config.updated_time_pos.3,
         screenshots::image::Rgba([255, 255, 255, 255]),
     );
     //image_update_time.save(format!("time.png")).unwrap();
@@ -614,13 +614,14 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 .unwrap()
                 != load_icon
             {
-                thread::sleep(Duration::from_millis(30));
+                thread::sleep(Duration::from_millis(100));
             }
+            thread::sleep(Duration::from_millis(300));
 
             // click mouse in proper area
             let _ = enigo.move_mouse(loc_opentime.0, loc_opentime.1, Coordinate::Abs);
             let _ = enigo.button(Button::Left, Click);
-            thread::sleep(Duration::from_millis(200));
+            thread::sleep(Duration::from_millis(300));
         }
 
         // take screencap to determine if page has changed
@@ -629,19 +630,19 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
         //println!("checking time");
         new_update_time = screen
             .capture_area(
-                config.updated_time_pos.0 as i32,
-                config.updated_time_pos.1 as i32,
-                220,
-                9,
+                config.updated_time_pos.0,
+                config.updated_time_pos.1,
+                config.updated_time_pos.2,
+                config.updated_time_pos.3,
             )
             .unwrap();
         while new_update_time.pixels().eq(blank.pixels()) {
             new_update_time = screen
                 .capture_area(
-                    config.updated_time_pos.0 as i32,
-                    config.updated_time_pos.1 as i32,
-                    220,
-                    9,
+                    config.updated_time_pos.0,
+                    config.updated_time_pos.1,
+                    config.updated_time_pos.2,
+                    config.updated_time_pos.3,
                 )
                 .unwrap();
             thread::sleep(Duration::from_millis(50));

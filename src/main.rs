@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use crate::bot::{
     bot_thread, BotAction, BotMessage, Date, Field, Filter, FilterType, Op, Rule, Time,
 };
@@ -542,11 +544,10 @@ impl LogPane {
             Message::TripFound => {
                 self.log.push_str("Trip Found\n");
             }
-            _ => {} /*
-                    m => {
-                        self.log.push_str(&format!("{:?}\n", m));
-                    }
-                    */
+            Message::Bot(m) => {
+                self.log.push_str(&format!("{:?}\n", m));
+            }
+            _ => {}
         }
     }
 

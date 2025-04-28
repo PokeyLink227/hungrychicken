@@ -5,7 +5,8 @@ pub fn update() -> Result<(), Box<dyn std::error::Error>> {
         .repo_owner("pokeylink227")
         .repo_name("hungrychicken")
         .bin_name("hungrychicken")
-        .show_download_progress(true)
+        .show_download_progress(false)
+        .no_confirm(true)
         .current_version(cargo_crate_version!())
         .build()?
         .update()?;
