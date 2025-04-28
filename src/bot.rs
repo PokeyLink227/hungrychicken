@@ -28,6 +28,9 @@ pub enum BotMessage {
     Start(Vec<Rule>),
     Stop,
     TripFound,
+    CopyScreen,
+    Waiting(u64),
+    Copied(String),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -597,7 +600,8 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             refresh_interval = Duration::from_secs(rand::random_range(
                 config.refresh_interval.0..config.refresh_interval.1,
             ) as u64);
-            println!("refreshing and waiting {}", refresh_interval.as_secs());
+            //println!("refreshing and waiting {}", refresh_interval.as_secs());
+            tx.send(BotMessage::Waiting(refresh_interval.as_secs())).unwrap();
             // refresh page
             let _ = enigo.key(Key::Control, Press);
             let _ = enigo.key(Key::Unicode('r'), Click);
@@ -665,6 +669,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             image_update_time = new_update_time;
 
             println!("Copying screen");
+            tx.send(BotMessage::CopyScreen).unwrap();
             // copy text
             let _ = enigo.key(Key::Control, Press);
             let _ = enigo.key(Key::Unicode('a'), Click);
@@ -677,6 +682,7 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
 
             // process text
             if let Ok(result) = get_clipboard_string() {
+                tx.send(BotMessage::Copied(result.clone())).unwrap();
                 let trips: Vec<Trip> = re_opentime_trip
                     .captures_iter(&result)
                     .map(|c| c.extract())
@@ -709,6 +715,8 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                         )
                     })
                     .collect();
+
+
 
                 // alert if any match
                 for t in &filtered_trips {

@@ -545,7 +545,7 @@ impl LogPane {
                 self.log.push_str("Trip Found\n");
             }
             Message::Bot(m) => {
-                self.log.push_str(&format!("{:?}\n", m));
+                self.log.push_str(&format!("[Bot] {:?}\n", m));
             }
             _ => {}
         }
