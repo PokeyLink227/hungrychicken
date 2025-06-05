@@ -58,7 +58,7 @@ impl BotConfig {
 
     fn save_default() {
         let conf = BotConfig {
-            updated_time_pos: (517, 199, 150, 20),
+            updated_time_pos: (517, 179, 150, 40),
             refresh_interval: (10, 30),
             refresh: [87, 62, 20, 20],
         };
