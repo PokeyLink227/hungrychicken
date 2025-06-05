@@ -76,7 +76,7 @@ impl BotConfig {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rule {
     pub name: String,
     pub filters: Vec<Filter>,
@@ -104,7 +104,7 @@ impl Rule {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum Op {
     Eq,
     NEq,
@@ -131,7 +131,7 @@ impl Display for Op {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum Field {
     Report,
     Depart,
@@ -156,7 +156,7 @@ impl Display for Field {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Filter {
     TimeDiff(Field, Field, Op, Time),
     FieldIs(Field, Op, Time),
@@ -255,7 +255,7 @@ impl From<FilterType> for Filter {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum FilterType {
     NewFilter,
     TimeDiff,
@@ -288,7 +288,7 @@ impl Display for FilterType {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum BotAction {
     Nothing = 1,
@@ -312,7 +312,7 @@ impl Display for BotAction {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Time {
     pub hours: u8,
     pub minutes: u8,
@@ -400,7 +400,7 @@ impl Display for Time {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Date {
     pub year: u16,
     pub month: u8,
@@ -601,7 +601,8 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 config.refresh_interval.0..config.refresh_interval.1,
             ) as u64);
             //println!("refreshing and waiting {}", refresh_interval.as_secs());
-            tx.send(BotMessage::Waiting(refresh_interval.as_secs())).unwrap();
+            tx.send(BotMessage::Waiting(refresh_interval.as_secs()))
+                .unwrap();
             // refresh page
             let _ = enigo.key(Key::Control, Press);
             let _ = enigo.key(Key::Unicode('r'), Click);
@@ -715,8 +716,6 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                         )
                     })
                     .collect();
-
-
 
                 // alert if any match
                 for t in &filtered_trips {

@@ -9,11 +9,13 @@ use iced::{
     Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
 use self_update::cargo_crate_version;
-use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::Sender;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::{
+    fs::File,
+    io::prelude::*,
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
+    time::{Duration, Instant},
+};
 
 mod bot;
 mod update;
@@ -76,6 +78,8 @@ enum Message {
     Stop,
     TripFound,
     NewRule,
+    SaveRules,
+    LoadRules,
     EnableRule(usize),
     DisableRule(usize),
     DeleteRule(usize),
@@ -160,6 +164,19 @@ impl App {
                 self.tx.send(BotMessage::Stop).unwrap();
                 iced::window::gain_focus(self.window_id.unwrap())
             }
+            Message::SaveRules => {
+                if let Ok(js) = serde_json::to_string(&self.rules_pane.rules) {
+                    if let Ok(mut file) = File::create("rules.json") {
+                        let _ = file.write_all(js.as_bytes());
+                    };
+                };
+
+                Task::none()
+            }
+            Message::LoadRules => {
+                self.rules_pane = RulesPane::load_file();
+                Task::none()
+            }
             Message::GotWindowId(i) => {
                 self.window_id = Some(i);
                 Task::none()
@@ -215,6 +232,8 @@ impl ControlPane {
             } else {
                 button("Stop").on_press(Message::Stop)
             },
+            button("Save").on_press(Message::SaveRules),
+            button("Load").on_press(Message::LoadRules),
         ])
         .style(bordered_box)
         .height(Length::FillPortion(1))
@@ -231,6 +250,34 @@ struct RulesPane {
 }
 
 impl RulesPane {
+    fn load_file() -> Self {
+        println!("CALLED");
+        let Ok(mut file) = File::open("rules.json") else {
+            return Self::default();
+        };
+        println!("ASD");
+
+        let mut data = String::new();
+        let Ok(_) = file.read_to_string(&mut data) else {
+            return Self::default();
+        };
+        match serde_json::from_str::<Vec<Rule>>(&data) {
+            Ok(rules) => {
+                let enabled: Vec<bool> = rules.iter().map(|_| true).collect();
+                let entries: Vec<Vec<String>> = rules
+                    .iter()
+                    .map(|r| vec![String::new(); r.filters.len()])
+                    .collect();
+                Self {
+                    rules,
+                    enabled,
+                    entries,
+                }
+            }
+            Err(_) => Self::default(),
+        }
+    }
+
     fn update(&mut self, message: Message) {
         match message {
             Message::NewRule => {
