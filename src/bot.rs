@@ -5,21 +5,18 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Mouse, Settings,
 };
-//use rand::Rng;
 use regex::{Regex, RegexBuilder};
 use rodio::{source::Source, Decoder, OutputStream, Sink};
 use serde::{Deserialize, Serialize};
-use std::io::BufReader;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::Sender;
-use std::thread;
 use std::{
     cell::LazyCell,
     fmt::Display,
     fs::File,
-    io::prelude::*,
+    io::{prelude::*, BufReader},
     ops::Sub,
     str::FromStr,
+    sync::mpsc::{Receiver, Sender},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -544,7 +541,6 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
     //let mut page_text = String::new();
     let mut last_refresh = Instant::now();
     let mut refresh_interval = Duration::from_secs(config.refresh_interval.0 as u64);
-
     thread::sleep(Duration::from_secs(1));
 
     // click mouse to focus window
