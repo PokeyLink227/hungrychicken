@@ -1,5 +1,4 @@
 use crate::{AppState, Message};
-use clipboard_win::{formats, get_clipboard_string, set_clipboard};
 use enigo::{
     Button, Coordinate,
     Direction::{Click, Press, Release},
@@ -678,29 +677,30 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             thread::sleep(Duration::from_millis(150));
 
             // process text
-            if let Ok(result) = get_clipboard_string() {
-                tx.send(BotMessage::Copied(result.clone())).unwrap();
-                let trips: Vec<Trip> = re_opentime_trip
-                    .captures_iter(&result)
-                    .map(|c| c.extract())
-                    .map(
-                        |(_, [id, date, days, rep, dep, arr, blk, crd, lay, prem])| Trip {
-                            id: id.to_owned(),
-                            date: date.parse().unwrap(),
-                            days: days.parse().unwrap(),
-                            report: rep.parse().unwrap(),
-                            depart: dep.parse().unwrap(),
-                            arrive: arr.parse().unwrap(),
-                            block: Time::from_num_str(blk).unwrap(),
-                            credit: Time::from_num_str(crd).unwrap(),
-                            layovers: lay.split_whitespace().map(|s| s.to_owned()).collect(),
-                            premium: !prem.is_empty(),
-                        },
-                    )
-                    .collect();
+            let result = String::from("asd");
+            tx.send(BotMessage::Copied(result.clone())).unwrap();
+            let trips: Vec<Trip> = re_opentime_trip
+                .captures_iter(&result)
+                .map(|c| c.extract())
+                .map(
+                    |(_, [id, date, days, rep, dep, arr, blk, crd, lay, prem])| Trip {
+                        id: id.to_owned(),
+                        date: date.parse().unwrap(),
+                        days: days.parse().unwrap(),
+                        report: rep.parse().unwrap(),
+                        depart: dep.parse().unwrap(),
+                        arrive: arr.parse().unwrap(),
+                        block: Time::from_num_str(blk).unwrap(),
+                        credit: Time::from_num_str(crd).unwrap(),
+                        layovers: lay.split_whitespace().map(|s| s.to_owned()).collect(),
+                        premium: !prem.is_empty(),
+                    },
+                )
+                .collect();
 
-                // apply filters
-                let filtered_trips: Vec<(BotAction, &str)> = trips
+            // apply filters
+            let filtered_trips: Vec<(BotAction, &str)> =
+                trips
                     .iter()
                     .map(|t| {
                         (
@@ -713,24 +713,21 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                     })
                     .collect();
 
-                // alert if any match
-                for t in &filtered_trips {
-                    println!("{:?} {}", t.0, t.1);
-                    if t.0 == BotAction::Pickup {
-                        add_trip_from_opentime(&mut enigo, t.1);
-                        sink.play();
-                        state = AppState::Stopped;
-                        tx.send(BotMessage::Stop).unwrap();
-                        continue;
-                    } else if t.0 == BotAction::Alert {
-                        // alert user
-                        sink.play();
-                        state = AppState::Alerting;
-                        tx.send(BotMessage::TripFound).unwrap();
-                    }
+            // alert if any match
+            for t in &filtered_trips {
+                println!("{:?} {}", t.0, t.1);
+                if t.0 == BotAction::Pickup {
+                    add_trip_from_opentime(&mut enigo, t.1);
+                    sink.play();
+                    state = AppState::Stopped;
+                    tx.send(BotMessage::Stop).unwrap();
+                    continue;
+                } else if t.0 == BotAction::Alert {
+                    // alert user
+                    sink.play();
+                    state = AppState::Alerting;
+                    tx.send(BotMessage::TripFound).unwrap();
                 }
-            } else {
-                println!("failed to retrive clipboard");
             }
         }
 
@@ -741,12 +738,12 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
         while m < milis_to_sleep {
             // check if Escape key is pressed
 
-            if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
-                println!("stopping");
-                state = AppState::Stopped;
-                tx.send(BotMessage::Stop).unwrap();
-                continue 'main;
-            }
+            // if unsafe { winapi::um::winuser::GetKeyState(27) } & 0x8000u16 as i16 != 0 {
+            //     println!("stopping");
+            //     state = AppState::Stopped;
+            //     tx.send(BotMessage::Stop).unwrap();
+            //     continue 'main;
+            // }
             thread::sleep(Duration::from_millis(50));
             m += 50;
         }
