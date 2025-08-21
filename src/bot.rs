@@ -750,45 +750,47 @@ pub fn bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
     }
 }
 
-fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) {
-    hit_button(enigo, trip_id);
-    hit_button(enigo, "it r");
+fn add_trip_from_otadd(enigo: &mut Enigo, trip_id: &str) -> enigo::InputResult<()> {
+    hit_button(enigo, trip_id)?;
+    hit_button(enigo, "it r")
 }
 
-fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) {
-    hit_button(enigo, "submit");
+fn add_trip_from_opentime(enigo: &mut Enigo, trip_id: &str) -> enigo::InputResult<()> {
+    hit_button(enigo, "submit")?;
     thread::sleep(Duration::from_millis(1500)); // this delay needs to wait until the page has loaded
-    hit_button(enigo, "add");
+    hit_button(enigo, "add")?;
     thread::sleep(Duration::from_millis(1500)); // this delay needs to wait until the page has loaded
-    hit_button(enigo, trip_id);
+    hit_button(enigo, trip_id)?;
     thread::sleep(Duration::from_millis(50));
-    hit_button(enigo, "it r");
+    hit_button(enigo, "it r")
 }
 
 // these durations should be randomized if possible, should total to ~1 sec
-fn hit_button(enigo: &mut Enigo, button_name: &str) {
+fn hit_button(enigo: &mut Enigo, button_name: &str) -> enigo::InputResult<()> {
     println!("hitting [{}] button", button_name);
 
     // open quick find bar
     println!("hitting /");
-    let _ = enigo.key(Key::Unicode('/'), Click);
+    enigo.key(Key::Unicode('/'), Click)?;
     thread::sleep(Duration::from_millis(28));
 
     // type button name
     println!("hitting trip id");
-    let _ = enigo.text(button_name);
+    enigo.text(button_name)?;
     thread::sleep(Duration::from_millis(200));
 
     // navigate to button
     println!("hitting shoft+tab");
     //let _ = enigo.key(Key::Tab, Click);
-    let _ = enigo.key(Key::Shift, Press);
-    let _ = enigo.key(Key::Tab, Click);
-    let _ = enigo.key(Key::Shift, Release);
+    enigo.key(Key::Shift, Press)?;
+    enigo.key(Key::Tab, Click)?;
+    enigo.key(Key::Shift, Release)?;
     thread::sleep(Duration::from_millis(75));
 
     // click button
     println!("hitting enter");
-    let _ = enigo.key(Key::Return, Click);
+    enigo.key(Key::Return, Click)?;
     thread::sleep(Duration::from_millis(5));
+
+    Ok(())
 }
