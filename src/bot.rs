@@ -5,13 +5,13 @@ use enigo::{
     Enigo, Key, Keyboard, Mouse, Settings,
 };
 use regex::{Regex, RegexBuilder};
-use rodio::{source::Source, Decoder, OutputStream, Sink};
+use rodio::{Decoder, OutputStream, Sink, source::Source};
 use serde::{Deserialize, Serialize};
 use std::{
     cell::LazyCell,
     fmt::Display,
     fs::File,
-    io::{prelude::*, BufReader},
+    io::{BufReader, prelude::*},
     ops::Sub,
     str::FromStr,
     sync::mpsc::{Receiver, Sender},

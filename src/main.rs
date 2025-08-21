@@ -1,12 +1,12 @@
 #![windows_subsystem = "windows"]
 
 use crate::bot::{
-    bot_thread, BotAction, BotMessage, Date, Field, Filter, FilterType, Op, Rule, Time,
+    BotAction, BotMessage, Date, Field, Filter, FilterType, Op, Rule, Time, bot_thread,
 };
-use iced::widget::{button, checkbox, column, container, row, scrollable, text, Column};
+use iced::widget::{Column, button, checkbox, column, container, row, scrollable, text};
 use iced::{
-    keyboard::{key, on_key_press, Key, Modifiers},
     Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
+    keyboard::{Key, Modifiers, key, on_key_press},
 };
 use self_update::cargo_crate_version;
 use std::{
@@ -365,8 +365,8 @@ impl RulesPane {
                     )))
                     .spacing(5),
                     container(
-                        button(container("New Rule")
-                            //.center_x(Length::Fill)
+                        button(
+                            container("New Rule") //.center_x(Length::Fill)
                         )
                         .on_press(Message::NewRule) //.width(Length::Fill)
                     )
@@ -526,20 +526,18 @@ impl Filter {
                         ])
                     }
                     Filter::IncludeLayover(_) => {
-                        container(row![iced::widget::text_input(
-                            "Airport Code",
-                            &format!("{}", entry)
-                        )
-                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
+                        container(row![
+                            iced::widget::text_input("Airport Code", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
                     }
                     Filter::ExcludeLayover(_) => {
-                        container(row![iced::widget::text_input(
-                            "Airport Code",
-                            &format!("{}", entry)
-                        )
-                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
+                        container(row![
+                            iced::widget::text_input("Airport Code", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
                     }
                     Filter::NumDays(op, num) => {
                         container(row![
@@ -556,12 +554,11 @@ impl Filter {
                         ])
                     }
                     Filter::IncludeId(_) => {
-                        container(row![iced::widget::text_input(
-                            "Trip ID",
-                            &format!("{}", entry)
-                        )
-                        .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
-                        .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),])
+                        container(row![
+                            iced::widget::text_input("Trip ID", &format!("{}", entry))
+                                .on_input(move |new| Message::UpdateEntry(ruleindex, index, new))
+                                .on_submit(Message::SubmitEntry(ruleindex, index, self.clone())),
+                        ])
                     }
                 }
             ]
