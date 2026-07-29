@@ -1,8 +1,9 @@
 #![windows_subsystem = "windows"]
-
 use crate::bot::{
     BotAction, BotMessage, Date, Field, Filter, FilterType, Op, Rule, Time, bot_thread,
+    image_bot_thread,
 };
+use iced::Background;
 use iced::widget::{Column, button, checkbox, column, container, row, scrollable, text};
 use iced::{
     Border, Center, Color, Element, Length, Padding, Size, Subscription, Task, Theme,
@@ -54,11 +55,17 @@ fn filter_box(theme: &Theme) -> container::Style {
     let mut s = container::bordered_box(theme);
     s.border = s.border.rounded(5);
     s.border.color = Color {
-        r: 1.0,
-        g: 0.0,
-        b: 0.0,
+        r: 0.7,
+        g: 0.7,
+        b: 0.7,
         a: 1.0,
     };
+    // s.background = Some(Background::Color(Color {
+    //     r: 0.7,
+    //     g: 0.7,
+    //     b: 0.7,
+    //     a: 1.0,
+    // }));
     // change color
     s
 }
@@ -117,7 +124,7 @@ impl App {
     fn init() -> (App, Task<Message>) {
         let (mb_tx, mb_rx) = mpsc::channel();
         let (bm_tx, bm_rx) = mpsc::channel();
-        let thread_handle = thread::spawn(move || bot_thread(mb_rx, bm_tx));
+        let thread_handle = thread::spawn(move || image_bot_thread(mb_rx, bm_tx));
 
         (
             App {

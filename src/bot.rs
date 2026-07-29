@@ -1,4 +1,4 @@
-use crate::{AppState, Message};
+use crate::{App, AppState, Message};
 use enigo::{
     Button, Coordinate,
     Direction::{Click, Press, Release},
@@ -24,6 +24,8 @@ pub enum BotMessage {
     Start(Vec<Rule>),
     Stop,
     TripFound,
+    Screenshot,
+    TableMissing,
     CopyScreen,
     Waiting(u64),
     Copied(String),
@@ -497,6 +499,318 @@ impl Trip {
             Field::Arrive => self.arrive,
             Field::Block => self.block,
             Field::Credit => self.credit,
+        }
+    }
+}
+
+use std::collections::HashSet;
+
+use xcap::image::{ImageBuffer, Rgba, RgbaImage};
+
+const CAP_LEN: usize = 5;
+const TABLE_LINE_WIDTH: u32 = 4;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpentimeRow {
+    pub y: u32,
+    pub h: u32,
+
+    pub x_pairing: u32,
+    pub w_pairing: u32,
+
+    pub x_premium: u32,
+}
+
+// TODO: validate this is the first row using the blue header
+// for pairing and premium rows
+fn table_moved(screen: &RgbaImage, first_row: &OpentimeRow) -> bool {
+    *screen.get_pixel(first_row.x_pairing, first_row.y)
+        != Rgba::<u8>::from([0xFF, 0xFF, 0xFF, 0xFF])
+}
+
+fn find_first_row(screen: &RgbaImage) -> Option<OpentimeRow> {
+    let (width, height) = screen.dimensions();
+    println!("Finding first row");
+
+    let white = Rgba::<u8>::from([0xFF, 0xFF, 0xFF, 0xFF]);
+    let light_gray = Rgba::<u8>::from([0xB2, 0xB2, 0xB2, 0xFF]);
+    let dark_gray = Rgba::<u8>::from([0x4C, 0x4C, 0x4C, 0xFF]);
+    let light_blue = Rgba::<u8>::from([0xB0, 0xC4, 0xDE, 0xFF]);
+
+    let mut table_top_left_inner_corner = None;
+    let mut table_top_right_inner_corner = None;
+
+    let mut trip_id_pos = None;
+
+    let mut x = 0;
+    let mut y = 0;
+
+    // Find left bounds of table
+    'outer: while y < height - 8 {
+        while x < width - 8 {
+            if *screen.get_pixel(x, y) == light_gray
+                && *screen.get_pixel(x + 2, y + 2) == dark_gray
+                && *screen.get_pixel(x + 4, y + 4) == light_gray
+                && *screen.get_pixel(x + 6, y + 6) == dark_gray
+                && *screen.get_pixel(x + 8, y + 8) == light_blue
+            {
+                table_top_left_inner_corner = Some((x + 4, y + 4));
+                break 'outer;
+            }
+            x += 1;
+        }
+        y += 1;
+        x = 0;
+    }
+    let table_top_left_inner_corner = table_top_left_inner_corner?;
+    println!("{:?}", table_top_left_inner_corner);
+
+    // Find right bounds of table
+    x += 4;
+    y += 4;
+    while x < width - 2 {
+        if *screen.get_pixel(x, y) != light_gray && *screen.get_pixel(x - 4, y + 4) == light_blue {
+            table_top_right_inner_corner = Some((x, y));
+            break;
+        }
+        x += 1;
+    }
+    let table_top_right_inner_corner = table_top_right_inner_corner?;
+    println!("{:?}", table_top_right_inner_corner);
+
+    // Find first row
+
+    // Get bounds of Pairing column
+    (x, y) = table_top_left_inner_corner;
+    while y < height {
+        if *screen.get_pixel(x, y) == white {
+            trip_id_pos = Some((x, y));
+            break;
+        }
+        y += 1;
+    }
+    let trip_id_pos = trip_id_pos?;
+
+    while y < height {
+        if *screen.get_pixel(x, y) != white {
+            break;
+        }
+        y += 1;
+    }
+    while x < width {
+        if *screen.get_pixel(x, y - 1) != white {
+            break;
+        }
+        x += 1;
+    }
+    let trip_id_size = (x - trip_id_pos.0, y - trip_id_pos.1);
+    println!("{:?}", trip_id_pos);
+    println!("{:?}", trip_id_size);
+
+    // TODO: only compare white pixels to avoid clicked (purple) links being different
+
+    // Get bounds of Premium column
+    x = table_top_right_inner_corner.0;
+    y = trip_id_pos.1;
+    while x > trip_id_pos.0 {
+        if *screen.get_pixel(x, y) != white {
+            break;
+        }
+        x -= 1;
+    }
+    let prem_mid_pos = ((table_top_right_inner_corner.0 + x) / 2, trip_id_pos.1);
+    let prem_mid_size = (1, trip_id_size.1);
+    println!("{:?}", prem_mid_pos);
+    println!("{:?}", prem_mid_size);
+
+    let dim = OpentimeRow {
+        y: trip_id_pos.1,
+        h: trip_id_size.1,
+        x_pairing: trip_id_pos.0,
+        w_pairing: trip_id_size.0,
+        x_premium: prem_mid_pos.0,
+    };
+    println!("{:?}", dim);
+
+    Some(dim)
+}
+
+// convert to tiny vec? reuse return buffer?
+fn collect_prem(screen: &RgbaImage, first_row: &OpentimeRow) -> Vec<OpentimeRow> {
+    let mut prem_rows = Vec::new();
+
+    'outer: for off_y in 0..CAP_LEN {
+        let row_start: u32 = first_row.y + (first_row.h + TABLE_LINE_WIDTH) * off_y as u32;
+        if row_start + first_row.h >= screen.height() {
+            break;
+        }
+
+        for y in 0..first_row.h {
+            if *screen.get_pixel(first_row.x_premium, y + row_start)
+                != Rgba::<u8>::from([0xFF, 0xFF, 0xFF, 0xFF])
+            {
+                prem_rows.push(OpentimeRow {
+                    y: row_start,
+                    ..*first_row
+                });
+                continue 'outer;
+            }
+        }
+    }
+
+    println!("PREM_ROWS: {:?}", prem_rows);
+    prem_rows
+}
+
+fn is_ignored(screen: &RgbaImage, row: &OpentimeRow, ignored_trips: &HashSet<RgbaImage>) -> bool {
+    let mut pairing_id = RgbaImage::new(row.w_pairing, row.h);
+    for ty in 0..row.h {
+        for tx in 0..row.w_pairing {
+            pairing_id[(tx, ty)] = screen[(tx + row.x_pairing, ty + row.y)];
+        }
+    }
+
+    ignored_trips.contains(&pairing_id)
+}
+
+fn ignore_trip(screen: &RgbaImage, row: &OpentimeRow, ignored_trips: &mut HashSet<RgbaImage>) {
+    let mut pairing_id = RgbaImage::new(row.w_pairing, row.h);
+    for ty in 0..row.h {
+        for tx in 0..row.w_pairing {
+            pairing_id[(tx, ty)] = screen[(tx + row.x_pairing, ty + row.y)];
+        }
+    }
+
+    ignored_trips.insert(pairing_id);
+}
+
+fn bot_main(ignored_trips: &mut HashSet<RgbaImage>) -> Option<Vec<OpentimeRow>> {
+    let screen = xcap::Monitor::all().unwrap()[0].clone();
+    let cap = screen.capture_image().unwrap();
+
+    let mut first_row: OpentimeRow = find_first_row(&cap)?;
+
+    loop {
+        if table_moved(&cap, &first_row) {
+            first_row = find_first_row(&cap)?;
+        }
+
+        let prem_trips = collect_prem(&cap, &first_row);
+        if prem_trips.is_empty() {
+            // continue
+            None?;
+        } else {
+            let new_prem: Vec<OpentimeRow> = prem_trips
+                .into_iter()
+                .filter(|trip| !is_ignored(&cap, trip, ignored_trips))
+                .collect();
+            if new_prem.is_empty() {
+                // continue
+                None?;
+            } else {
+                new_prem
+                    .iter()
+                    .for_each(|row| ignore_trip(&cap, row, ignored_trips));
+                return Some(new_prem);
+            }
+        }
+    }
+}
+
+pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
+    let mut state = AppState::Stopped;
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let file = BufReader::new(File::open("alert_sound.wav").unwrap());
+    let source = Decoder::new(file).unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+    sink.append(source.repeat_infinite());
+    sink.pause();
+
+    let config: BotConfig = BotConfig::load().unwrap();
+
+    let mut enigo = Enigo::new(&Settings::default()).unwrap();
+
+    let mut last_refresh = Instant::now();
+    let mut refresh_interval = Duration::from_secs(config.refresh_interval.0 as u64);
+    thread::sleep(Duration::from_secs(1));
+
+    let mut ignored_trips = HashSet::<RgbaImage>::new();
+    let screen = xcap::Monitor::all().unwrap()[0].clone();
+
+    let mut first_row = OpentimeRow {
+        y: 0,
+        h: 0,
+        x_pairing: 0,
+        w_pairing: 0,
+        x_premium: 0,
+    };
+
+    println!("bot entering main loop");
+    'main: loop {
+        if let Ok(msg) = rx.try_recv() {
+            match msg {
+                BotMessage::Start(r) => {
+                    state = AppState::Running;
+                    // rules = r;
+                }
+                BotMessage::Stop => {
+                    state = AppState::Stopped;
+                    sink.pause();
+                }
+                _ => {}
+            }
+        }
+
+        if state != AppState::Running {
+            thread::sleep(Duration::from_millis(100));
+            continue 'main;
+        }
+
+        // refresh page
+        if last_refresh.elapsed() > refresh_interval {
+            last_refresh = Instant::now();
+            refresh_interval = Duration::from_secs(rand::random_range(
+                config.refresh_interval.0..config.refresh_interval.1,
+            ) as u64);
+
+            tx.send(BotMessage::Waiting(refresh_interval.as_secs()))
+                .unwrap();
+
+            // refresh page
+            let _ = enigo.key(Key::F5, Click);
+        }
+
+        thread::sleep(Duration::from_millis(1000));
+        let cap = screen.capture_image().unwrap();
+        tx.send(BotMessage::Screenshot);
+
+        if table_moved(&cap, &first_row) {
+            let Some(new_first_row) = find_first_row(&cap) else {
+                println!("First row missing");
+                state = AppState::Stopped;
+                tx.send(BotMessage::TableMissing);
+                continue;
+            };
+
+            first_row = new_first_row;
+        }
+
+        let new_prem: Vec<OpentimeRow> = collect_prem(&cap, &first_row)
+            .into_iter()
+            .filter(|trip| !is_ignored(&cap, trip, &ignored_trips))
+            .collect();
+
+        if new_prem.is_empty() {
+            // continue
+        } else {
+            new_prem
+                .iter()
+                .for_each(|row| ignore_trip(&cap, row, &mut ignored_trips));
+
+            // Alert user
+            sink.play();
+            state = AppState::Alerting;
+            tx.send(BotMessage::TripFound).unwrap();
         }
     }
 }
