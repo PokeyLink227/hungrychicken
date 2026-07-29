@@ -13,3 +13,10 @@
 ## Bugs
 
 - image diffing broken
+
+## New TODO
+
+- fix duplicate prem bug
+- refreshing not working
+- fix hanging thread
+    - swap to tokio task?
