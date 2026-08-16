@@ -505,7 +505,7 @@ impl Trip {
 
 use std::collections::HashSet;
 
-use xcap::image::{ImageBuffer, Rgba, RgbaImage};
+use xcap::image::{Rgba, RgbaImage};
 
 const CAP_LEN: usize = 5;
 const TABLE_LINE_WIDTH: u32 = 4;
@@ -524,8 +524,21 @@ pub struct OpentimeRow {
 // TODO: validate this is the first row using the blue header
 // for pairing and premium rows
 fn table_moved(screen: &RgbaImage, first_row: &OpentimeRow) -> bool {
-    *screen.get_pixel(first_row.x_pairing, first_row.y)
-        != Rgba::<u8>::from([0xFF, 0xFF, 0xFF, 0xFF])
+    let white = Rgba::<u8>::from([0xFF, 0xFF, 0xFF, 0xFF]);
+    let light_gray = Rgba::<u8>::from([0xB2, 0xB2, 0xB2, 0xFF]);
+    let dark_gray = Rgba::<u8>::from([0x4C, 0x4C, 0x4C, 0xFF]);
+    let light_blue = Rgba::<u8>::from([0xB0, 0xC4, 0xDE, 0xFF]);
+
+    if first_row.h == 0 {
+        return true;
+    } else if first_row.y < 3 {
+        return true;
+    }
+
+    *screen.get_pixel(first_row.x_pairing, first_row.y) != white
+        || *screen.get_pixel(first_row.x_pairing, first_row.y - 1) != dark_gray
+        || *screen.get_pixel(first_row.x_pairing, first_row.y - 2) != light_gray
+        || *screen.get_pixel(first_row.x_pairing, first_row.y - 3) != light_blue
 }
 
 fn find_first_row(screen: &RgbaImage) -> Option<OpentimeRow> {
@@ -632,6 +645,8 @@ fn find_first_row(screen: &RgbaImage) -> Option<OpentimeRow> {
     };
     println!("{:?}", dim);
 
+    save_row(screen, &dim, 999);
+
     Some(dim)
 }
 
@@ -660,6 +675,22 @@ fn collect_prem(screen: &RgbaImage, first_row: &OpentimeRow) -> Vec<OpentimeRow>
 
     println!("PREM_ROWS: {:?}", prem_rows);
     prem_rows
+}
+
+fn save_row(screen: &RgbaImage, row: &OpentimeRow, id: usize) {
+    let mut out_img = RgbaImage::new(row.w_pairing + 1, row.h);
+
+    for y in 0..row.h {
+        for x in 0..row.w_pairing {
+            out_img[(x, y)] = screen[(x + row.x_pairing, y + row.y)];
+        }
+    }
+
+    for y in 0..row.h {
+        out_img[(row.w_pairing, y)] = screen[(row.x_premium, y + row.y)];
+    }
+
+    out_img.save(format!("row-{id}.png"));
 }
 
 fn is_ignored(screen: &RgbaImage, row: &OpentimeRow, ignored_trips: &HashSet<RgbaImage>) -> bool {
@@ -777,7 +808,10 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 .unwrap();
 
             // refresh page
-            let _ = enigo.key(Key::F5, Click);
+            // let _ = enigo.key(Key::F5, Click);
+            let _ = enigo.key(Key::Control, Press);
+            let _ = enigo.key(Key::Unicode('r'), Click);
+            let _ = enigo.key(Key::Control, Release);
         }
 
         thread::sleep(Duration::from_millis(1000));
@@ -806,6 +840,12 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             new_prem
                 .iter()
                 .for_each(|row| ignore_trip(&cap, row, &mut ignored_trips));
+
+            // for debugging
+            new_prem
+                .iter()
+                .enumerate()
+                .for_each(|(idx, row)| save_row(&cap, row, idx));
 
             // Alert user
             sink.play();
