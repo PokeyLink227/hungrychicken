@@ -508,7 +508,7 @@ use std::collections::HashSet;
 use xcap::image::{Rgba, RgbaImage};
 
 const CAP_LEN: usize = 5;
-const TABLE_LINE_WIDTH: u32 = 4;
+const TABLE_LINE_WIDTH: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpentimeRow {
@@ -562,12 +562,16 @@ fn find_first_row(screen: &RgbaImage) -> Option<OpentimeRow> {
     'outer: while y < height - 8 {
         while x < width - 8 {
             if *screen.get_pixel(x, y) == light_gray
-                && *screen.get_pixel(x + 2, y + 2) == dark_gray
-                && *screen.get_pixel(x + 4, y + 4) == light_gray
-                && *screen.get_pixel(x + 6, y + 6) == dark_gray
-                && *screen.get_pixel(x + 8, y + 8) == light_blue
+                && *screen.get_pixel(x + TABLE_LINE_WIDTH, y + TABLE_LINE_WIDTH) == dark_gray
+                && *screen.get_pixel(x + TABLE_LINE_WIDTH * 2, y + TABLE_LINE_WIDTH * 2)
+                    == light_gray
+                && *screen.get_pixel(x + TABLE_LINE_WIDTH * 3, y + TABLE_LINE_WIDTH * 3)
+                    == dark_gray
+                && *screen.get_pixel(x + TABLE_LINE_WIDTH * 4, y + TABLE_LINE_WIDTH * 4)
+                    == light_blue
             {
-                table_top_left_inner_corner = Some((x + 4, y + 4));
+                table_top_left_inner_corner =
+                    Some((x + TABLE_LINE_WIDTH * 2, y + TABLE_LINE_WIDTH * 2));
                 break 'outer;
             }
             x += 1;
@@ -579,10 +583,12 @@ fn find_first_row(screen: &RgbaImage) -> Option<OpentimeRow> {
     println!("{:?}", table_top_left_inner_corner);
 
     // Find right bounds of table
-    x += 4;
-    y += 4;
+    x += TABLE_LINE_WIDTH * 2;
+    y += TABLE_LINE_WIDTH * 2;
     while x < width - 2 {
-        if *screen.get_pixel(x, y) != light_gray && *screen.get_pixel(x - 4, y + 4) == light_blue {
+        if *screen.get_pixel(x, y) != light_gray
+            && *screen.get_pixel(x - TABLE_LINE_WIDTH * 2, y + TABLE_LINE_WIDTH * 2) == light_blue
+        {
             table_top_right_inner_corner = Some((x, y));
             break;
         }
@@ -655,7 +661,7 @@ fn collect_prem(screen: &RgbaImage, first_row: &OpentimeRow) -> Vec<OpentimeRow>
     let mut prem_rows = Vec::new();
 
     'outer: for off_y in 0..CAP_LEN {
-        let row_start: u32 = first_row.y + (first_row.h + TABLE_LINE_WIDTH) * off_y as u32;
+        let row_start: u32 = first_row.y + (first_row.h + TABLE_LINE_WIDTH * 2) * off_y as u32;
         if row_start + first_row.h >= screen.height() {
             break;
         }
