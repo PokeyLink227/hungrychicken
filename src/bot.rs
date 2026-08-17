@@ -789,6 +789,7 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
             match msg {
                 BotMessage::Start(r) => {
                     state = AppState::Running;
+                    missing_count = 0;
                     // rules = r;
                 }
                 BotMessage::Stop => {
