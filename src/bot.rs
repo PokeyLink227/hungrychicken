@@ -767,6 +767,7 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
 
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
 
+    let mut missing_count = 0;
     let mut last_refresh = Instant::now();
     let mut refresh_interval = Duration::from_secs(config.refresh_interval.0 as u64);
     thread::sleep(Duration::from_secs(1));
@@ -826,12 +827,19 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
 
         if table_moved(&cap, &first_row) {
             let Some(new_first_row) = find_first_row(&cap) else {
-                println!("First row missing");
-                state = AppState::Stopped;
+                missing_count += 1;
+                if missing_count > 5 {
+                    state = AppState::Stopped;
+                    tx.send(BotMessage::Stop);
+                }
                 tx.send(BotMessage::TableMissing);
-                continue;
+
+                println!("First row missing");
+                thread::sleep(Duration::from_millis(500));
+                continue 'main;
             };
 
+            missing_count = 0;
             first_row = new_first_row;
         }
 
