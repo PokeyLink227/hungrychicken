@@ -823,7 +823,7 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
 
         thread::sleep(Duration::from_millis(1000));
         let cap = screen.capture_image().unwrap();
-        tx.send(BotMessage::Screenshot);
+        // tx.send(BotMessage::Screenshot);
 
         if table_moved(&cap, &first_row) {
             let Some(new_first_row) = find_first_row(&cap) else {
