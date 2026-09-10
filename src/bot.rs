@@ -832,6 +832,7 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
                 if missing_count > 5 {
                     state = AppState::Stopped;
                     tx.send(BotMessage::Stop);
+                    missing_count = 0;
                 }
                 tx.send(BotMessage::TableMissing);
 

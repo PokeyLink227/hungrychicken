@@ -194,10 +194,10 @@ impl App {
 
     fn view(&self) -> Element<Message> {
         row![
-            container(column![self.log.view(), self.info.view()].spacing(5))
-                .width(Length::FillPortion(3)),
-            container(column![self.control_pane.view(), self.rules_pane.view()].spacing(5))
+            container(column![self.control_pane.view(), self.log.view()].spacing(5))
                 .width(Length::FillPortion(7)),
+            container(column![self.rules_pane.view(), self.info.view()].spacing(5))
+                .width(Length::FillPortion(3)),
         ]
         .spacing(5)
         .into()
@@ -227,8 +227,10 @@ impl ControlPane {
     }
 
     fn view(&self) -> Element<Message> {
-        container(row![
+        container(column![
             text(format!("Current State: {:?}", self.state)).size(20),
+            row![
+
             if self.state == AppState::Running {
                 button("Start")
             } else {
@@ -241,7 +243,7 @@ impl ControlPane {
             },
             button("Save").on_press(Message::SaveRules),
             button("Load").on_press(Message::LoadRules),
-        ])
+        ]])
         .style(bordered_box)
         .height(Length::FillPortion(1))
         .width(Length::Fill)
@@ -384,7 +386,7 @@ impl RulesPane {
             )
             .spacing(5),
         )
-        //.style(bordered_box)
+        .style(bordered_box)
         //.padding(5)
         .height(Length::FillPortion(9))
         .width(Length::Fill)
