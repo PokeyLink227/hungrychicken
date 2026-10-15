@@ -843,6 +843,8 @@ pub fn image_bot_thread(rx: Receiver<BotMessage>, tx: Sender<BotMessage>) {
 
             missing_count = 0;
             first_row = new_first_row;
+        } else {
+	    missing_count = 0;
         }
 
         let new_prem: Vec<OpentimeRow> = collect_prem(&cap, &first_row)
